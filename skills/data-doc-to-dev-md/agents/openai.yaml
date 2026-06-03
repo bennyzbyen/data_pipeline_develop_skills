@@ -1,0 +1,6 @@
+interface:
+  display_name: "Data Doc To Dev Markdown"
+  short_description: "Turn PRD/DataEngine DOCX into dev docs"
+  default_prompt: "Use $data-doc-to-dev-md to extract this DataEngine DOCX and produce dev_doc.md plus questions.md."
+policy:
+  allow_implicit_invocation: true

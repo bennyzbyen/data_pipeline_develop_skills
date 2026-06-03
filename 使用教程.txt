@@ -1,0 +1,234 @@
+数据开发 Codex Skills 使用教程
+
+一、前提
+
+这 4 个 skill 已同步到 Codex skills 目录：
+
+1. data-doc-to-dev-md
+2. data-sync-codegen
+3. report-codegen
+4. data-job-log-debugger
+
+建议在新项目中使用时，新开一个 Codex 线程，并把工作目录切到你的新项目目录。
+
+skill_lab 主要用于维护、升级、回归测试 skill。
+真实项目不应该依赖 skill_lab/prod_code_sample。
+
+
+二、推荐的新项目目录结构
+
+new_project/
+  requirement/
+    xxx.docx
+  dev_doc/
+  src/
+  logs/
+
+说明：
+
+- requirement/：放 PRD、DataEngine、水线文档、报表需求文档等。
+- dev_doc/：放 AI 可读开发文档。
+- src/：放生成出来的数据同步或报表开发代码。
+- logs/：放部署后打印出来的完整日志。
+
+
+三、整体使用顺序
+
+1. 使用 data-doc-to-dev-md，把 DOCX 需求文档转成 dev_doc.md。
+2. 根据项目类型选择：
+   - 数据同步项目：使用 data-sync-codegen。
+   - 报表开发项目：使用 report-codegen。
+3. 部署生成代码到机器运行。
+4. 拿完整日志或截图，使用 data-job-log-debugger 定位问题。
+
+
+四、第一步：需求文档转开发文档
+
+对 Codex 说：
+
+使用 $data-doc-to-dev-md，把 requirement/xxx.docx 转成 AI 可读开发文档，输出到 dev_doc/。
+先提取正文和嵌入 Excel，再生成 dev_doc.md、structured_facts.json、questions.md。
+不要生成代码。
+
+输出文件一般包括：
+
+- dev_doc/dev_doc.md
+- dev_doc/structured_facts.json
+- dev_doc/questions.md
+- extracted/extracted_document.md
+- extracted/extracted_tables/*.csv
+
+重点检查：
+
+- dev_doc.md 是否包含源表、目标表、字段映射、处理流程、写入策略、调度重跑、参数设计。
+- structured_facts.json 是否提取到了表、字段、映射、目标表等结构化信息。
+- questions.md 是否列出了需要你确认的问题。
+
+
+五、第二步：数据同步项目生成
+
+适用场景：
+
+- Python 数据同步
+- COT 年度同步
+- MySQL / Blob / FS / HBase / ClickHouse 同步
+- 同步逻辑基本稳定，主要变化是表、字段、参数、rowkey、period 范围
+
+先建好代码目录，例如：
+
+new_project/src/
+
+然后对 Codex 说：
+
+使用 $data-sync-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+在 src/ 目录生成数据同步项目代码。
+这是 COT / DataEngine 数据同步项目。
+配置里的密钥、IP、token 全部保留占位符。
+gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
+生成后做语法检查和 fake runtime verifier。
+
+生成后重点检查：
+
+- params.example.json 里是否都是占位符。
+- 源表、目标 HBase 表、目标 ClickHouse 表是否正确。
+- rowkey 规则是否正确。
+- period / full / delta 同步逻辑是否符合需求。
+- gateway/、hbase/、fs/ 是否没有被写入业务逻辑。
+
+
+六、第二步：报表开发项目生成
+
+适用场景：
+
+- DataEngine 报表开发
+- ClickHouse 报表写入
+- HBase / FS / MSSQL / MySQL 混合数据源
+- KPI、明细表、汇总表开发
+
+先建好代码目录，例如：
+
+new_project/src/
+
+然后对 Codex 说：
+
+使用 $report-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+在 src/ 目录生成报表开发项目代码。
+使用 DataSource / DataProcess / DataStorage 三段式。
+默认按 supervisor_portal 风格；如果是 HBase + FS + ClickHouse 复杂报表，再参考 vehicle_verification 风格。
+配置里的密钥、IP、token 全部保留占位符。
+gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
+生成后做语法检查和 fake runtime verifier。
+
+生成后重点检查：
+
+- DataSource 是否只负责读数和参数解析。
+- DataProcess 是否包含核心字段映射、过滤、join、KPI 计算、汇总逻辑。
+- DataStorage 是否包含 ClickHouse 写入策略。
+- 输出表、输出字段、字段顺序是否符合 dev_doc。
+- KPI 分子、分母、空值、默认值、舍入逻辑是否符合需求。
+- gateway/、hbase/、fs/ 是否没有被写入业务逻辑。
+
+
+七、第三步：部署运行
+
+本地没有完整测试环境时，建议只在本地做：
+
+- 语法检查
+- 参数文件检查
+- fake runtime verifier
+- 文件结构检查
+- 密钥占位符检查
+
+真正验证仍然要部署到机器上跑日志。
+
+部署前需要你补齐：
+
+- 真实密钥
+- 真实 IP
+- token / app key / app secret
+- 环境路径
+- 固定平台包 gateway/、hbase/、fs/
+
+
+八、第四步：日志调试
+
+部署后，如果运行失败或结果不对，把完整打印日志或截图给 Codex。
+
+对 Codex 说：
+
+使用 $data-job-log-debugger，分析这个 DataEngine 部署运行日志。
+先判断路径、编码、参数、环境、权限、数据缺失、HBase/FS/ClickHouse 问题，
+再判断是否是业务代码问题。
+输出根因、影响范围、最小修改建议、验证方式。
+
+日志调试时尽量提供：
+
+- 完整日志文本
+- 如果只有图片，提供尽量完整的截图
+- params JSON
+- 运行环境：uat / prod
+- 重跑 period 或日期
+- 最近改过的代码文件
+
+data-job-log-debugger 默认会先排查：
+
+- 路径问题
+- 编码问题
+- 参数问题
+- 环境变量问题
+- 权限问题
+- 上游数据缺失
+- HBase / FS / Gateway 问题
+- ClickHouse 表、字段、权限问题
+
+确认不是这些问题后，再判断业务代码问题。
+
+
+九、常用提示词模板
+
+1. 文档转开发文档
+
+使用 $data-doc-to-dev-md，把 requirement/xxx.docx 转成 AI 可读开发文档，输出到 dev_doc/。
+先提取正文和嵌入 Excel，再生成 dev_doc.md、structured_facts.json、questions.md。
+不要生成代码。
+
+
+2. 数据同步代码生成
+
+使用 $data-sync-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+在 src/ 目录生成数据同步项目代码。
+这是 COT / DataEngine 数据同步项目。
+配置里的密钥、IP、token 全部保留占位符。
+gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
+生成后做语法检查和 fake runtime verifier。
+
+
+3. 报表开发代码生成
+
+使用 $report-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+在 src/ 目录生成报表开发项目代码。
+使用 DataSource / DataProcess / DataStorage 三段式。
+默认按 supervisor_portal 风格；如果是 HBase + FS + ClickHouse 复杂报表，再参考 vehicle_verification 风格。
+配置里的密钥、IP、token 全部保留占位符。
+gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
+生成后做语法检查和 fake runtime verifier。
+
+
+4. 部署日志调试
+
+使用 $data-job-log-debugger，分析这个 DataEngine 部署运行日志。
+先判断路径、编码、参数、环境、权限、数据缺失、HBase/FS/ClickHouse 问题，
+再判断是否是业务代码问题。
+输出根因、影响范围、最小修改建议、验证方式。
+
+
+十、关键原则
+
+1. 需求文档先转 dev_doc.md，不要直接从 DOCX 生成代码。
+2. dev_doc/questions.md 里的关键问题要先确认。
+3. 数据同步和报表开发不要混用 skill。
+4. gateway/、hbase/、fs/ 是固定平台包，不放业务逻辑。
+5. 配置文件里的密钥、IP、token 默认使用占位符。
+6. 本地只做静态检查和 fake runtime verifier。
+7. 最终正确性以部署日志和实际输出为准。
+8. skill_lab 是维护和回归目录，不是新项目的运行依赖。
