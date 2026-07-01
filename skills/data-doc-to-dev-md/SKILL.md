@@ -1,6 +1,6 @@
 ---
 name: data-doc-to-dev-md
-description: Convert PRD, DataEngine, DataHub, COT, HBase, ClickHouse, Superview, and report requirement DOCX files into AI-readable Markdown development documents, extracting正文, embedded Excel tables, source/target tables, field dictionaries, calculation logic, scheduling, rerun rules, and open questions for Python data synchronization or report development.
+description: Convert one or more PRD, DataEngine, DataHub, waterline, COT, HBase, ClickHouse, Superview, and report requirement DOCX files into AI-readable Markdown development documents, extracting正文, embedded Excel tables, source/target tables, field dictionaries, calculation logic, scheduling, rerun rules, provenance, and open questions for Python data synchronization or report development.
 ---
 
 # Data Doc To Dev Markdown
@@ -25,11 +25,12 @@ Use this skill when the user provides PRD, DataEngine, DataHub, waterline, repor
 
 Create outputs under a user-provided output folder, or default to `outputs/<project-name>/`:
 
-- `extracted/extracted_document.md`: document title, paragraphs, headings, embedded workbook summary.
-- `extracted/extracted_tables/*.csv`: CSV exports for embedded Excel sheets.
-- `extracted/word_tables/*.csv`: CSV exports for Word正文表格 when present.
+- `extracted/extracted_document.md`: single-document title, paragraphs, headings, embedded workbook summary.
+- `extracted/extracted_tables/*.csv`: single-document CSV exports for embedded Excel sheets.
+- `extracted/word_tables/*.csv`: single-document CSV exports for Word正文表格 when present.
+- `extracted/doc_###_<name>/...`: per-document extraction folders for multi-DOCX projects.
 - `dev_doc/dev_doc.md`: standard AI-readable development document.
-- `dev_doc/structured_facts.json`: machine-readable facts extracted from recognized embedded Excel matrices.
+- `dev_doc/structured_facts.json`: machine-readable facts extracted from recognized matrices, with source-document provenance when available.
 - `dev_doc/questions.md`: missing or uncertain points requiring user confirmation.
 
 ## Standard Dev Doc Sections
@@ -52,7 +53,7 @@ The generated `dev_doc.md` must contain these sections in this order:
 ## Workflow
 
 1. Inspect the input path and confirm the DOCX exists.
-2. Run `scripts/extract_docx_bundle.py`:
+2. Run `scripts/extract_docx_bundle.py`. Use one `--docx` for simple projects:
 
 ```powershell
 python .\skills\data-doc-to-dev-md\scripts\extract_docx_bundle.py `
@@ -60,15 +61,27 @@ python .\skills\data-doc-to-dev-md\scripts\extract_docx_bundle.py `
   --out ".\outputs\example"
 ```
 
-3. Review `extracted/extracted_document.md` and the CSV files.
-4. Review `dev_doc/structured_facts.json` before code generation. For COT-style sync docs, this file should contain source/target report rows, Data Utilization names, target mappings, schedules, and field dictionaries.
+For PRD + waterline / DataEngine multi-document projects, repeat `--docx` and keep one shared output folder:
+
+```powershell
+python .\skills\data-doc-to-dev-md\scripts\extract_docx_bundle.py `
+  --docx ".\doc\project PRD.docx" `
+  --docx ".\doc\project Data Engine水线文档.docx" `
+  --out ".\outputs\project" `
+  --project-name "project"
+```
+
+3. Review `extracted/extracted_document.md` for single documents, or `extracted/doc_###_<name>/extracted_document.md` for multi-document projects.
+4. Review `dev_doc/structured_facts.json` before code generation. For COT-style sync docs, this file should contain source/target report rows, Data Utilization names, target mappings, schedules, and field dictionaries. For multi-document report docs, it should contain `documents`, `report_sources`, `report_targets`, `report_physical_targets`, `report_field_mappings`, `report_schedules`, PRD rule facts, and provenance fields.
 5. Use `assets/dev_doc_template.md` as the final document shape.
 6. Move ambiguous points into `questions.md`; do not hide uncertainty in prose.
 
 ## Quality Bar
 
 - For COT/data-sync documents, `dev_doc.md` is not good enough if it only lists embedded CSV filenames. It must expose the sync matrix: source table, target table, field dictionary, schedule, target prefixes, and unresolved rowkey/table exception questions.
+- For COT/data-sync field dictionaries, prefer explicit or nearby正文 table-name context over simple embedded-sheet order. If the extractor only uses order fallback, review mappings with suspicious key fields manually before code generation.
 - For report documents, `dev_doc.md` must expose target output fields and calculation/filter/join facts well enough for `report-codegen` to implement output-equivalent logic without reopening the original DOCX. If field rules live in Word正文表格 such as `字段名 / 字段key / 数据源位置 / 数据表 / 数据源对应的字段 / 计算逻辑`, they must be extracted into `report_field_mappings`.
+- For PRD + waterline projects, technical facts from the waterline/DataEngine document should drive table, field, storage, and schedule facts; PRD facts should supplement business goals, abnormal rules, KPI logic, and UI aggregation logic. Conflicts belong in `questions.md`.
 - Treat `structured_facts.json` as the handoff artifact for codegen skills whenever it exists.
 
 ## Reference Loading

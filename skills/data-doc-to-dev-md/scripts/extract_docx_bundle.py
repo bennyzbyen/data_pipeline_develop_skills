@@ -52,10 +52,16 @@ def compact_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def target_basename(target: str) -> str:
+    return target.replace("\\", "/").rsplit("/", 1)[-1]
+
+
 @dataclass
 class Paragraph:
     style: str
     text: str
+    source_doc_index: int = 1
+    source_doc_name: str = ""
 
 
 @dataclass
@@ -67,6 +73,9 @@ class SheetSummary:
     row_count: int
     headers: list[str]
     source: str = "embedded"
+    source_doc_index: int = 1
+    source_doc_name: str = ""
+    context_text: str = ""
 
 
 def extract_docx_paragraphs(docx_path: Path) -> tuple[list[Paragraph], int, list[str]]:
@@ -96,6 +105,65 @@ def extract_docx_paragraphs(docx_path: Path) -> tuple[list[Paragraph], int, list
             and entry.filename.lower().endswith(".xlsx")
         ]
         return paragraphs, table_count, embedded
+
+
+def read_document_relationships(docx: zipfile.ZipFile) -> dict[str, str]:
+    text = read_zip_text(docx, "word/_rels/document.xml.rels")
+    if not text:
+        return {}
+    root = ET.fromstring(text)
+    rels: dict[str, str] = {}
+    for rel in root:
+        if local_name(rel.tag) == "Relationship":
+            rel_id = rel.attrib.get("Id")
+            target = rel.attrib.get("Target")
+            if rel_id and target:
+                rels[rel_id] = target
+    return rels
+
+
+def element_text(element: ET.Element) -> str:
+    return compact_text("".join(node.text or "" for node in element.iter(qn(NS_W, "t"))))
+
+
+def embedding_rel_ids(element: ET.Element, rels: dict[str, str]) -> list[str]:
+    ids: list[str] = []
+    for node in element.iter():
+        for key, value in node.attrib.items():
+            if not (key == "r:id" or key.endswith("}id")):
+                continue
+            target = rels.get(value, "")
+            if "embeddings/" in target.replace("\\", "/") and target.lower().endswith(".xlsx"):
+                ids.append(value)
+    return ids
+
+
+def extract_embedding_contexts(docx_path: Path, window: int = 4) -> dict[str, str]:
+    contexts: dict[str, str] = {}
+    with zipfile.ZipFile(docx_path) as docx:
+        document_xml = read_zip_text(docx, "word/document.xml")
+        if not document_xml:
+            return contexts
+        rels = read_document_relationships(docx)
+        if not rels:
+            return contexts
+        root = ET.fromstring(document_xml)
+        body = root.find(qn(NS_W, "body"))
+        if body is None:
+            return contexts
+        recent_texts: list[str] = []
+        for element in list(body):
+            current_text = element_text(element)
+            ids = embedding_rel_ids(element, rels)
+            for rel_id in ids:
+                workbook_name = target_basename(rels[rel_id])
+                context_parts = recent_texts[-window:]
+                if current_text:
+                    context_parts = context_parts + [current_text]
+                contexts[workbook_name] = "\n".join(context_parts)
+            if current_text:
+                recent_texts.append(current_text)
+    return contexts
 
 
 def col_index(cell_ref: str) -> int:
@@ -271,6 +339,7 @@ class io_bytes:
 def extract_embedded_tables(docx_path: Path, tables_dir: Path, max_rows: int) -> list[SheetSummary]:
     tables_dir.mkdir(parents=True, exist_ok=True)
     summaries: list[SheetSummary] = []
+    contexts = extract_embedding_contexts(docx_path)
     with zipfile.ZipFile(docx_path) as docx:
         entries = [
             entry
@@ -281,15 +350,16 @@ def extract_embedded_tables(docx_path: Path, tables_dir: Path, max_rows: int) ->
         for index, entry in enumerate(entries, start=1):
             workbook_bytes = docx.read(entry.filename)
             workbook_name = Path(entry.filename).name
-            summaries.extend(
-                extract_xlsx_tables(
-                    workbook_name=workbook_name,
-                    workbook_bytes=workbook_bytes,
-                    tables_dir=tables_dir,
-                    workbook_index=index,
-                    max_rows=max_rows,
-                )
+            extracted = extract_xlsx_tables(
+                workbook_name=workbook_name,
+                workbook_bytes=workbook_bytes,
+                tables_dir=tables_dir,
+                workbook_index=index,
+                max_rows=max_rows,
             )
+            for summary in extracted:
+                summary.context_text = contexts.get(workbook_name, "")
+            summaries.extend(extracted)
     return summaries
 
 
@@ -465,19 +535,198 @@ def split_table_names(value: str) -> list[str]:
     return names
 
 
-def read_csv_dicts(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+def read_csv_rows(path: Path) -> list[list[str]]:
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.DictReader(handle)
-            return list(reader.fieldnames or []), list(reader)
+            return [list(row) for row in csv.reader(handle)]
     except UnicodeDecodeError:
         with path.open("r", encoding="utf-8", newline="") as handle:
-            reader = csv.DictReader(handle)
-            return list(reader.fieldnames or []), list(reader)
+            return [list(row) for row in csv.reader(handle)]
+
+
+def make_unique_headers(headers: list[str]) -> list[str]:
+    seen: dict[str, int] = {}
+    result: list[str] = []
+    for index, header in enumerate(headers):
+        value = compact_text(str(header or "")) or f"__blank_{index + 1}"
+        count = seen.get(value, 0)
+        seen[value] = count + 1
+        result.append(value if count == 0 else f"{value}_{count + 1}")
+    return result
+
+
+def header_score(row: list[str]) -> int:
+    normalized = {normalize_header(value) for value in row if compact_text(str(value or ""))}
+    if not normalized:
+        return 0
+    if normalize_header("字段key") in normalized and (
+        normalize_header("字段名称") in normalized or normalize_header("字段名") in normalized
+    ):
+        return 100
+    if normalize_header("Key") in normalized and normalize_header("字段名称") in normalized:
+        return 100
+    if (
+        normalize_header("位置") in normalized
+        and normalize_header("数据库") in normalized
+        and normalize_header("数据表名") in normalized
+        and normalize_header("数据表") in normalized
+    ):
+        return 95
+    if (
+        normalize_header("位置") in normalized
+        and normalize_header("数据表名") in normalized
+        and normalize_header("数据表") in normalized
+        and (normalize_header("取数范围") in normalized or normalize_header("数据范围") in normalized)
+    ):
+        return 92
+    if (
+        normalize_header("Data Utilization Name") in normalized
+        and normalize_header("Target Name") in normalized
+        and normalize_header("Data Storage") in normalized
+    ):
+        return 90
+    if normalize_header("Data Utilization Name") in normalized and (
+        normalize_header("task1 name") in normalized
+        or normalize_header("Pipeline Name") in normalized
+        or normalize_header("Pipline_Name") in normalized
+    ):
+        return 90
+    if (
+        normalize_header("异常类型") in normalized
+        and normalize_header("判断规则") in normalized
+        and normalize_header("产出数据表") in normalized
+    ):
+        return 88
+    if (
+        (normalize_header("KPI 名称") in normalized or normalize_header("KPI名称") in normalized)
+        and normalize_header("数据来源底表") in normalized
+        and normalize_header("汇总逻辑") in normalized
+    ):
+        return 86
+    if (
+        normalize_header("汇总列") in normalized
+        and normalize_header("数据来源底表") in normalized
+        and normalize_header("汇总逻辑") in normalized
+    ):
+        return 84
+    if normalize_header("Name") in normalized and normalize_header("Description") in normalized:
+        return 70
+    if (
+        normalize_header("Description") in normalized
+        and normalize_header("Data Storage") in normalized
+        and normalize_header("Database") in normalized
+        and normalize_header("Table Name") in normalized
+    ):
+        return 80
+    if (
+        normalize_header("序号") in normalized
+        and normalize_header("业务描述") in normalized
+        and normalize_header("hbase 表") in normalized
+    ):
+        return 80
+    return 0
+
+
+def detect_header_index(rows: list[list[str]], scan_rows: int = 15) -> int:
+    best_index = 0
+    best_score = header_score(rows[0]) if rows else 0
+    for index, row in enumerate(rows[:scan_rows]):
+        score = header_score(row)
+        if score > best_score:
+            best_index = index
+            best_score = score
+    return best_index
+
+
+def read_csv_table(path: Path) -> tuple[list[str], list[dict[str, str]], list[list[str]]]:
+    raw_rows = read_csv_rows(path)
+    if not raw_rows:
+        return [], [], []
+    header_index = detect_header_index(raw_rows)
+    headers = make_unique_headers(raw_rows[header_index])
+    width = len(headers)
+    dict_rows: list[dict[str, str]] = []
+    for row in raw_rows[header_index + 1 :]:
+        values = row + [""] * (width - len(row))
+        values = values[:width]
+        if not any(compact_text(str(value or "")) for value in values):
+            continue
+        dict_rows.append(dict(zip(headers, values)))
+    return headers, dict_rows, raw_rows[:header_index]
+
+
+def read_csv_dicts(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    headers, rows, _preamble = read_csv_table(path)
+    return headers, rows
 
 
 def has_headers(headers: list[str], required: list[str]) -> bool:
     return all(has_header(headers, name) for name in required)
+
+
+def provenance_from_summary(summary: SheetSummary) -> dict[str, str | int]:
+    provenance: dict[str, str | int] = {
+        "source_doc_index": summary.source_doc_index,
+        "source_doc_name": summary.source_doc_name,
+        "source_csv": summary.csv_path.name,
+        "source_sheet": summary.sheet_name,
+        "source_kind": summary.source,
+    }
+    if summary.context_text:
+        provenance["source_context"] = summary.context_text
+    return provenance
+
+
+def add_provenance(row: dict, summary: SheetSummary) -> dict:
+    row.update(provenance_from_summary(summary))
+    return row
+
+
+def preamble_text(preamble: list[list[str]]) -> str:
+    parts: list[str] = []
+    for row in preamble:
+        for cell in row:
+            value = compact_text(str(cell or ""))
+            if value:
+                parts.append(value)
+    return "\n".join(parts)
+
+
+def table_name_from_text(text: str) -> str:
+    match = re.search(r"数据表[：:]\s*([A-Za-z0-9_.]+)", text)
+    return match.group(1) if match else ""
+
+
+def normalized_table_key(value: str) -> str:
+    value = compact_text(str(value or "")).lower()
+    if "." in value:
+        value = value.rsplit(".", 1)[-1]
+    if value.startswith("clickhouse_"):
+        value = value[len("clickhouse_") :]
+    return value
+
+
+def append_unique_by_key(items: list[dict], item: dict, key: str) -> None:
+    value = item.get(key, "")
+    if value and any(existing.get(key) == value for existing in items):
+        return
+    items.append(item)
+
+
+def best_context_match(context: str, names: list[str]) -> str:
+    if not context:
+        return ""
+    best_name = ""
+    best_position = -1
+    context_lower = context.lower()
+    for name in names:
+        if not name:
+            continue
+        position = context_lower.rfind(name.lower())
+        if position > best_position:
+            best_name = name
+            best_position = position
+    return best_name
 
 
 def first_fields(rows: list[dict[str, str]], limit: int = 12) -> list[str]:
@@ -571,16 +820,21 @@ def report_field_rows(rows: list[dict[str, str]]) -> list[dict]:
         field_name = cell_value(row, "字段名称", "字段名")
         if not key and not field_name:
             continue
+        formula = (
+            cell_value(row, "计算逻辑", "字段公式", "数据源+字段公式", "数据源 + 字段公式")
+            or cell_value_contains(row, "字段公式")
+            or cell_value_contains(row, "数据源", "公式")
+        )
         fields.append(
             {
                 "target_field": key,
                 "field_name": field_name,
                 "source_category": cell_value(row, "数据源分类"),
-                "source_desc": cell_value(row, "数据源描述", "来源库表"),
+                "source_desc": cell_value(row, "数据源描述", "来源库表", "数据源"),
                 "source_storage": cell_value(row, "数据源位置", "存放地"),
                 "source_table": cell_value(row, "数据表"),
                 "source_field": cell_value(row, "数据源对应的字段", "来源字段"),
-                "calculation_logic": cell_value(row, "计算逻辑"),
+                "calculation_logic": formula,
                 "eo_order_logic": cell_value_contains(row, "EO+ERP"),
                 "dms_order_logic": cell_value_contains(row, "DMS"),
                 "sample": cell_value(row, "字段样例", "示例", "数据样例"),
@@ -597,6 +851,9 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
     clickhouse_targets = report_targets_from_paragraphs(paragraphs)
     hbase_targets = hbase_targets_from_paragraphs(paragraphs)
     facts = {
+        "documents": [],
+        "merge_policy": "",
+        "conflicts": [],
         "cot_report_tables": [],
         "data_utilizations": [],
         "target_mappings": [],
@@ -608,15 +865,18 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
         "report_clickhouse_targets": clickhouse_targets,
         "report_schedules": [],
         "report_field_mappings": [],
+        "report_business_rules": [],
+        "report_kpi_rules": [],
         "inferences": [],
     }
     field_dicts: list[dict] = []
     report_field_dicts: list[dict] = []
 
     for summary in sheet_summaries:
-        headers, rows = read_csv_dicts(summary.csv_path)
+        headers, rows, preamble = read_csv_table(summary.csv_path)
         if not headers or not rows:
             continue
+        declared_table = table_name_from_text(preamble_text(preamble))
 
         if has_headers(headers, ["序号", "业务描述", "hbase 表", "Hbase数据范围", "clickhouse表"]):
             for row in rows:
@@ -625,7 +885,8 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 if not source_table and not clickhouse_table:
                     continue
                 facts["cot_report_tables"].append(
-                    {
+                    add_provenance(
+                        {
                         "seq": cell_value(row, "序号"),
                         "category": cell_value(row, "所属类别"),
                         "report_type": cell_value(row, "报表类型"),
@@ -633,7 +894,9 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                         "source_hbase_table": source_table,
                         "source_range": cell_value(row, "Hbase数据范围"),
                         "clickhouse_table": clickhouse_table,
-                    }
+                        },
+                        summary,
+                    )
                 )
             continue
 
@@ -646,15 +909,48 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 table = f"{database}.{table_name}" if database else table_name
                 if any(target.get("table") == table for target in facts["report_clickhouse_targets"]):
                     continue
-                facts["report_clickhouse_targets"].append(
+                target = add_provenance(
                     {
                         "storage": cell_value(row, "Data Storage"),
                         "database": database,
                         "table_name": table_name,
                         "table": table,
                         "description": cell_value(row, "Description"),
-                    }
+                    },
+                    summary,
                 )
+                facts["report_clickhouse_targets"].append(target)
+                append_unique_by_key(facts["report_physical_targets"], dict(target), "table")
+            continue
+
+        if has_headers(headers, ["位置", "数据库", "数据表名", "数据表"]):
+            current_storage = ""
+            current_database = ""
+            for row in rows:
+                storage = cell_value(row, "位置") or current_storage
+                database = cell_value(row, "数据库") or current_database
+                description = cell_value(row, "数据表名")
+                table_name = cell_value(row, "数据表")
+                if cell_value(row, "位置"):
+                    current_storage = storage
+                if cell_value(row, "数据库"):
+                    current_database = database
+                if not table_name:
+                    continue
+                table = table_name if "." in table_name or not database else f"{database}.{table_name}"
+                target = add_provenance(
+                    {
+                        "storage": storage,
+                        "database": database,
+                        "table_name": table_name.rsplit(".", 1)[-1],
+                        "table": table,
+                        "description": description,
+                    },
+                    summary,
+                )
+                append_unique_by_key(facts["report_physical_targets"], target, "table")
+                if "clickhouse" in storage.lower():
+                    append_unique_by_key(facts["report_clickhouse_targets"], dict(target), "table")
             continue
 
         if (
@@ -667,15 +963,18 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 if not source_name and not physical_table:
                     continue
                 facts["report_sources"].append(
-                    {
-                        "storage": cell_value(row, "位置"),
-                        "table_or_path": physical_table or source_name,
-                        "table_names": split_table_names(physical_table or source_name),
-                        "description": source_name,
-                        "range": cell_value(row, "取数范围", "数据范围"),
-                        "fields": split_cell_lines(cell_value(row, "字段")),
-                        "join_filter": cell_value(row, "关联、过滤信息"),
-                    }
+                    add_provenance(
+                        {
+                            "storage": cell_value(row, "位置"),
+                            "table_or_path": physical_table or source_name,
+                            "table_names": split_table_names(physical_table or source_name),
+                            "description": source_name,
+                            "range": cell_value(row, "取数范围", "数据范围"),
+                            "fields": split_cell_lines(cell_value(row, "字段")),
+                            "join_filter": cell_value(row, "关联、过滤信息"),
+                        },
+                        summary,
+                    )
                 )
             continue
 
@@ -690,16 +989,62 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                     continue
                 fields = split_field_names(cell_value(row, "使用字段"))
                 facts["report_sources"].append(
-                    {
-                        "storage": cell_value(row, "位置"),
-                        "table_or_path": physical_table or source_name,
-                        "table_names": split_table_names(physical_table or source_name),
-                        "description": source_name,
-                        "range": cell_value(row, "备注"),
-                        "fields": fields,
-                        "join_filter": cell_value(row, "备注"),
-                        "category": cell_value(row, "分类"),
-                    }
+                    add_provenance(
+                        {
+                            "storage": cell_value(row, "位置"),
+                            "table_or_path": physical_table or source_name,
+                            "table_names": split_table_names(physical_table or source_name),
+                            "description": source_name,
+                            "range": cell_value(row, "备注"),
+                            "fields": fields,
+                            "join_filter": cell_value(row, "备注"),
+                            "category": cell_value(row, "分类"),
+                        },
+                        summary,
+                    )
+                )
+            continue
+
+        if has_headers(headers, ["异常类型", "判断规则", "产出数据表"]):
+            for row in rows:
+                abnormal_type = cell_value(row, "异常类型")
+                if not abnormal_type:
+                    continue
+                facts["report_business_rules"].append(
+                    add_provenance(
+                        {
+                            "abnormal_type": abnormal_type,
+                            "rule": cell_value(row, "判断规则", "判断规则（EO补差GSV异常阈值）"),
+                            "grain": cell_value(row, "数据粒度"),
+                            "source": cell_value(row, "数据源", "数据来源"),
+                            "output_table": cell_value(row, "产出数据表"),
+                            "scenario": cell_value(row, "场景"),
+                        },
+                        summary,
+                    )
+                )
+            continue
+
+        if (
+            has_header(headers, "KPI 名称", "KPI名称", "汇总列")
+            and has_header(headers, "数据来源底表")
+            and has_header(headers, "汇总逻辑")
+        ):
+            for row in rows:
+                name = cell_value(row, "KPI 名称", "KPI名称", "汇总列")
+                if not name:
+                    continue
+                facts["report_kpi_rules"].append(
+                    add_provenance(
+                        {
+                            "kpi": name,
+                            "unit": cell_value(row, "单位"),
+                            "source_table": cell_value(row, "数据来源底表"),
+                            "source_field": cell_value(row, "取值字段"),
+                            "aggregation_logic": cell_value(row, "汇总逻辑"),
+                        },
+                        summary,
+                    )
                 )
             continue
 
@@ -708,7 +1053,7 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 name = cell_value(row, "Name")
                 if name:
                     facts["data_utilizations"].append(
-                        {"name": name, "description": cell_value(row, "Description")}
+                        add_provenance({"name": name, "description": cell_value(row, "Description")}, summary)
                     )
             continue
 
@@ -723,14 +1068,17 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 explicit_hbase = cell_value(row, "Hbase Target Name")
                 explicit_clickhouse = cell_value(row, "Clickhouse Target Name")
                 facts["target_mappings"].append(
-                    {
-                        "data_utilization": name,
-                        "catalog": catalog,
-                        "hbase_target": explicit_hbase or f"{hbase_prefix}{catalog}",
-                        "clickhouse_target": explicit_clickhouse or f"{clickhouse_prefix}{catalog}",
-                        "hbase_target_prefix": hbase_prefix,
-                        "clickhouse_target_prefix": clickhouse_prefix,
-                    }
+                    add_provenance(
+                        {
+                            "data_utilization": name,
+                            "catalog": catalog,
+                            "hbase_target": explicit_hbase or f"{hbase_prefix}{catalog}",
+                            "clickhouse_target": explicit_clickhouse or f"{clickhouse_prefix}{catalog}",
+                            "hbase_target_prefix": hbase_prefix,
+                            "clickhouse_target_prefix": clickhouse_prefix,
+                        },
+                        summary,
+                    )
                 )
             continue
 
@@ -741,12 +1089,15 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 if not name and not target_name:
                     continue
                 facts["report_targets"].append(
-                    {
-                        "data_utilization": name,
-                        "target_name": target_name,
-                        "description": cell_value(row, "Target Description"),
-                        "storage": cell_value(row, "Data Storage"),
-                    }
+                    add_provenance(
+                        {
+                            "data_utilization": name,
+                            "target_name": target_name,
+                            "description": cell_value(row, "Target Description"),
+                            "storage": cell_value(row, "Data Storage"),
+                        },
+                        summary,
+                    )
                 )
             continue
 
@@ -755,12 +1106,16 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 name = cell_value(row, "Data Utilization Name")
                 if name:
                     facts["report_schedules"].append(
-                        {
-                            "data_utilization": name,
-                            "pipeline_name": cell_value(row, "Pipline_Name", "Pipeline Name", "Pipeline_Name"),
-                            "task_name": cell_value(row, "task1 name"),
-                            "description": cell_value(row, "Description"),
-                        }
+                        add_provenance(
+                            {
+                                "data_utilization": name,
+                                "pipeline_name": cell_value(row, "Pipline_Name", "Pipeline Name", "Pipeline_Name"),
+                                "task_name": cell_value(row, "task1 name"),
+                                "description": cell_value(row, "Description"),
+                                "schedule": cell_value(row, "trigger time", "定时任务"),
+                            },
+                            summary,
+                        )
                     )
             continue
 
@@ -769,26 +1124,33 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 pipeline_name = cell_value(row, "Pipeline Name")
                 if pipeline_name:
                     facts["report_schedules"].append(
-                        {
-                            "data_utilization": "",
-                            "pipeline_name": pipeline_name,
-                            "task_name": "",
-                            "description": cell_value(row, "Description", "Desription"),
-                            "schedule": cell_value(row, "定时任务"),
-                        }
+                        add_provenance(
+                            {
+                                "data_utilization": "",
+                                "pipeline_name": pipeline_name,
+                                "task_name": "",
+                                "description": cell_value(row, "Description", "Desription"),
+                                "schedule": cell_value(row, "定时任务"),
+                            },
+                            summary,
+                        )
                     )
             continue
 
         if (has_header(headers, "Key", "字段 key", "字段key") and has_header(headers, "字段名称", "字段名")):
             report_field_dicts.append(
-                {
+                add_provenance(
+                    {
                     "csv": summary.csv_path.name,
                     "sheet": summary.sheet_name,
                     "row_count": len(rows),
                     "headers": headers[:12],
                     "first_fields": first_fields(rows),
                     "fields": report_field_rows(rows),
-                }
+                    "declared_table": declared_table,
+                    },
+                    summary,
+                )
             )
             continue
 
@@ -797,13 +1159,16 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                 name = cell_value(row, "Data Utilization Name")
                 if name:
                     facts["schedules"].append(
-                        {
-                            "data_utilization": name,
-                            "pipeline_name": cell_value(row, "Pipeline Name"),
-                            "task_name": cell_value(row, "task1 name"),
-                            "schedule": cell_value(row, "定时同步时间"),
-                            "pipeline_prefix": cell_value(row, "pipeline前缀"),
-                        }
+                        add_provenance(
+                            {
+                                "data_utilization": name,
+                                "pipeline_name": cell_value(row, "Pipeline Name"),
+                                "task_name": cell_value(row, "task1 name"),
+                                "schedule": cell_value(row, "定时同步时间"),
+                                "pipeline_prefix": cell_value(row, "pipeline前缀"),
+                            },
+                            summary,
+                        )
                     )
             continue
 
@@ -815,19 +1180,31 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
             or "Field" in headers
         ):
             field_dicts.append(
-                {
+                add_provenance(
+                    {
                     "csv": summary.csv_path.name,
                     "sheet": summary.sheet_name,
                     "row_count": len(rows),
                     "headers": headers[:8],
                     "first_fields": first_fields(rows),
-                }
+                    "declared_table": declared_table,
+                    },
+                    summary,
+                )
             )
 
     util_names = [item["name"] for item in facts["data_utilizations"]]
     for index, item in enumerate(field_dicts):
-        if index < len(util_names):
+        context_match = best_context_match(str(item.get("source_context", "")), util_names)
+        if context_match:
+            item["inferred_data_utilization"] = context_match
+            item["inference_method"] = "embedding_context"
+            facts["inferences"].append(
+                f"{item['csv']} is mapped to {context_match} by embedding context."
+            )
+        elif index < len(util_names):
             item["inferred_data_utilization"] = util_names[index]
+            item["inference_method"] = "embedded_sheet_order"
             facts["inferences"].append(
                 f"{item['csv']} is mapped to {util_names[index]} by embedded-sheet order."
             )
@@ -835,10 +1212,61 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
 
     report_targets = facts.get("report_targets", [])
     report_physical_targets = facts.get("report_physical_targets", []) or facts.get("report_clickhouse_targets", [])
+    for target in report_targets:
+        target_key = normalized_table_key(target.get("target_name", ""))
+        if not target_key:
+            continue
+        for physical_target in report_physical_targets:
+            physical_key = normalized_table_key(
+                physical_target.get("table", "") or physical_target.get("table_name", "")
+            )
+            if target_key and target_key == physical_key:
+                target["physical_table"] = physical_target.get("table", "")
+                target["database"] = physical_target.get("database", "")
+                target["physical_description"] = physical_target.get("description", "")
+                break
+
     for index, item in enumerate(report_field_dicts):
-        if index < len(report_targets):
+        declared_key = normalized_table_key(item.get("declared_table", ""))
+        matched_target = None
+        matched_physical_target = None
+        if declared_key:
+            matched_target = next(
+                (
+                    target
+                    for target in report_targets
+                    if normalized_table_key(target.get("target_name", "")) == declared_key
+                    or normalized_table_key(target.get("physical_table", "")) == declared_key
+                ),
+                None,
+            )
+            matched_physical_target = next(
+                (
+                    target
+                    for target in report_physical_targets
+                    if normalized_table_key(target.get("table", "") or target.get("table_name", "")) == declared_key
+                ),
+                None,
+            )
+
+        if matched_target:
+            item["inferred_target_name"] = matched_target.get("target_name", "")
+            item["inferred_target_description"] = matched_target.get("description", "")
+            item["inferred_physical_table"] = matched_target.get("physical_table", "")
+            facts["inferences"].append(
+                f"{item['csv']} is mapped to {item['inferred_target_name']} by declared table {item.get('declared_table', '')}."
+            )
+        elif matched_physical_target:
+            item["inferred_target_name"] = matched_physical_target.get("table_name", "") or matched_physical_target.get("table", "")
+            item["inferred_target_description"] = matched_physical_target.get("description", "")
+            item["inferred_physical_table"] = matched_physical_target.get("table", "")
+            facts["inferences"].append(
+                f"{item['csv']} is mapped to {item['inferred_physical_table']} by declared table {item.get('declared_table', '')}."
+            )
+        elif index < len(report_targets):
             item["inferred_target_name"] = report_targets[index].get("target_name", "")
             item["inferred_target_description"] = report_targets[index].get("description", "")
+            item["inferred_physical_table"] = report_targets[index].get("physical_table", "")
             facts["inferences"].append(
                 f"{item['csv']} is mapped to {item['inferred_target_name']} by report target order."
             )
@@ -872,9 +1300,46 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                     "fields": [field.get("source_field", "")] if field.get("source_field") else [],
                     "join_filter": field.get("calculation_logic", ""),
                     "category": field.get("source_category", ""),
+                    "source_doc_index": mapping.get("source_doc_index", 1),
+                    "source_doc_name": mapping.get("source_doc_name", ""),
+                    "source_csv": mapping.get("source_csv", ""),
+                    "source_sheet": mapping.get("source_sheet", ""),
+                    "source_kind": "inferred_from_field_mapping",
                 }
             )
             existing_sources.add((source_storage, source_table))
+
+    conflicts_by_field: dict[tuple[str, str], dict] = {}
+    for mapping in facts.get("report_field_mappings", []):
+        target_key = normalized_table_key(
+            mapping.get("inferred_physical_table", "")
+            or mapping.get("inferred_target_name", "")
+            or mapping.get("declared_table", "")
+        )
+        for field in mapping.get("fields", []):
+            field_key = field.get("target_field", "") or field.get("field_name", "")
+            logic = compact_text(field.get("calculation_logic", ""))
+            if not target_key or not field_key or not logic:
+                continue
+            key = (target_key, field_key)
+            existing = conflicts_by_field.get(key)
+            if existing and existing.get("logic") != logic:
+                facts["conflicts"].append(
+                    {
+                        "kind": "field_rule_conflict",
+                        "target": target_key,
+                        "field": field_key,
+                        "first_logic": existing.get("logic", ""),
+                        "first_source": existing.get("source", ""),
+                        "second_logic": logic,
+                        "second_source": mapping.get("source_doc_name", ""),
+                    }
+                )
+            else:
+                conflicts_by_field[key] = {
+                    "logic": logic,
+                    "source": mapping.get("source_doc_name", ""),
+                }
 
     return facts
 
@@ -902,16 +1367,22 @@ def markdown_table(rows: list[dict], columns: list[tuple[str, str]], limit: int 
 
 def facts_summary_lines(facts: dict) -> list[str]:
     lines: list[str] = []
+    if facts.get("documents"):
+        lines.append(f"Documents merged: {len(facts['documents'])}.")
     if facts.get("cot_report_tables"):
         lines.append(f"Detected COT-style sync matrix: {len(facts['cot_report_tables'])} source/target rows.")
     if facts.get("report_sources"):
         lines.append(f"Detected report source matrix: {len(facts['report_sources'])} source rows.")
-    if facts.get("report_clickhouse_targets"):
-        lines.append(f"Detected physical ClickHouse targets: {len(facts['report_clickhouse_targets'])} tables.")
+    if facts.get("report_physical_targets"):
+        lines.append(f"Detected physical targets: {len(facts['report_physical_targets'])} tables.")
     if facts.get("report_targets"):
         lines.append(f"Detected report target-management rows: {len(facts['report_targets'])} targets.")
     if facts.get("report_field_mappings"):
         lines.append(f"Detected report field-logic sheets: {len(facts['report_field_mappings'])} target dictionaries.")
+    if facts.get("report_business_rules"):
+        lines.append(f"Detected PRD abnormal/business rules: {len(facts['report_business_rules'])}.")
+    if facts.get("report_kpi_rules"):
+        lines.append(f"Detected PRD KPI/aggregation rules: {len(facts['report_kpi_rules'])}.")
     if facts.get("field_dictionaries"):
         lines.append(f"Detected {len(facts['field_dictionaries'])} field dictionary sheets.")
     if facts.get("schedules"):
@@ -929,6 +1400,7 @@ def flattened_report_fields(facts: dict) -> list[dict]:
                 {
                     "target": mapping.get("inferred_target_name", ""),
                     "target_desc": mapping.get("inferred_target_description", ""),
+                    "physical_table": mapping.get("inferred_physical_table", ""),
                     **field,
                 }
             )
@@ -1016,7 +1488,7 @@ def write_questions(path: Path, paragraphs: list[Paragraph], sheet_summaries: li
         "生成代码时目标项目目录是哪一个？",
         "配置文件中的 app_key/app_secret/token/IP 是否全部使用占位符？",
     ]
-    if "rowkey" not in all_text:
+    if (has_hbase_target or facts.get("cot_report_tables")) and "rowkey" not in all_text:
         questions.append("HBase rowkey 规则未明确：需要确认 rowkey 拼接字段、时间字段格式、是否需要首位散列前缀。")
     if "重跑" not in all_text and "rerun" not in all_text:
         questions.append("重跑机制未明确：需要确认按 period、日期、时间戳还是全量重跑。")
@@ -1040,6 +1512,8 @@ def write_dev_doc_v2(
     facts: dict,
 ) -> None:
     title = paragraphs[0].text if paragraphs else project_name
+    source_documents = facts.get("documents") or [{"name": docx_path.name}]
+    source_document_names = [item.get("name", "") for item in source_documents if item.get("name")]
     source_hits = paragraphs_matching(paragraphs, ["数据源", "Source", "HBase", "MSSQL", "MySQL", "Blob"])
     target_hits = paragraphs_matching(paragraphs, ["Data Target", "目标表", "ClickHouse", "Data Storage"])
     flow_hits = paragraphs_matching(paragraphs, ["数据流程", "写入流程", "同步逻辑", "Data Transformation", "Pipeline"])
@@ -1099,11 +1573,11 @@ def write_dev_doc_v2(
         ],
     )
     report_physical_targets = markdown_table(
-        facts.get("report_clickhouse_targets", []),
+        facts.get("report_physical_targets", []),
         [
             ("Storage", "storage"),
             ("Database", "database"),
-            ("Table", "table_name"),
+            ("Physical Table", "table"),
             ("Description", "description"),
         ],
     )
@@ -1114,12 +1588,15 @@ def write_dev_doc_v2(
             ("Target Name", "target_name"),
             ("Description", "description"),
             ("Storage", "storage"),
+            ("Physical Table", "physical_table"),
         ],
     )
     report_field_summaries = markdown_table(
         facts.get("report_field_mappings", []),
         [
             ("Target", "inferred_target_name"),
+            ("Physical Table", "inferred_physical_table"),
+            ("Declared Table", "declared_table"),
             ("Description", "inferred_target_description"),
             ("CSV", "csv"),
             ("Rows", "row_count"),
@@ -1130,6 +1607,7 @@ def write_dev_doc_v2(
         flattened_report_fields(facts),
         [
             ("Target", "target"),
+            ("Physical Table", "physical_table"),
             ("Field", "target_field"),
             ("Name", "field_name"),
             ("Source", "source_desc"),
@@ -1148,6 +1626,28 @@ def write_dev_doc_v2(
             ("Task", "task_name"),
             ("Description", "description"),
         ],
+    )
+    business_rules = markdown_table(
+        facts.get("report_business_rules", []),
+        [
+            ("Abnormal Type", "abnormal_type"),
+            ("Rule", "rule"),
+            ("Grain", "grain"),
+            ("Source", "source"),
+            ("Output Table", "output_table"),
+        ],
+        limit=120,
+    )
+    kpi_rules = markdown_table(
+        facts.get("report_kpi_rules", []),
+        [
+            ("KPI", "kpi"),
+            ("Unit", "unit"),
+            ("Source Table", "source_table"),
+            ("Source Field", "source_field"),
+            ("Aggregation Logic", "aggregation_logic"),
+        ],
+        limit=120,
     )
 
     is_cot_sync = bool(facts.get("cot_report_tables"))
@@ -1221,11 +1721,19 @@ def write_dev_doc_v2(
             "- 待确认运行参数：period/current_date/sync_dates/receiver_emails/source table/target table/rowkey fields.\n"
         )
 
+    source_documents_text = ", ".join(f"`{name}`" for name in source_document_names) or f"`{docx_path.name}`"
+    kpi_logic_section = ""
+    if business_rules:
+        kpi_logic_section += "PRD abnormal/business rules:\n\n" + business_rules + "\n"
+    if kpi_rules:
+        kpi_logic_section += "PRD KPI / aggregation rules:\n\n" + kpi_rules + "\n"
+    kpi_logic_section += markdown_list(calc_hits)
+
     content = f"""# {project_name} Development Document
 
 ## 1. Project Overview
 
-- Source document: `{docx_path.name}`
+- Source document: {source_documents_text}
 - Original title: {title}
 - Project type: {project_type}
 {overview_facts}
@@ -1249,7 +1757,7 @@ The extracted embedded tables below are the primary field-dictionary evidence:
 {markdown_list(flow_hits)}
 ## 7. KPI / Calculation Logic
 
-{markdown_list(calc_hits)}
+{kpi_logic_section}
 ## 8. Write Strategy
 
 {write_strategy}
@@ -1307,7 +1815,7 @@ def write_questions_v2(path: Path, paragraphs: list[Paragraph], sheet_summaries:
         questions.append("如果文档提到 Gateway/FS 留痕或数据准备，需要确认 FS 目录、文件名和失败时是否阻断主流程。")
     else:
         questions.insert(0, "项目类型最终确认：数据同步还是报表开发？")
-    if "rowkey" not in all_text:
+    if (has_hbase_target or facts.get("cot_report_tables")) and "rowkey" not in all_text:
         questions.append("HBase rowkey 规则未明确：需要确认 rowkey 拼接字段、时间字段格式、是否需要首位散列前缀。")
     if "rerun" not in all_text and "重跑" not in all_text:
         questions.append("重跑机制未明确：需要确认按 period、日期、时间戳还是全量重跑。")
@@ -1325,8 +1833,77 @@ def write_questions_v2(path: Path, paragraphs: list[Paragraph], sheet_summaries:
     path.write_text(content, encoding="utf-8")
 
 
+def docx_paths_from_args(raw_docx: list[list[str]] | list[str]) -> list[Path]:
+    values: list[str] = []
+    for item in raw_docx:
+        if isinstance(item, list):
+            values.extend(item)
+        else:
+            values.append(item)
+    paths = [Path(value).expanduser().resolve() for value in values]
+    if not paths:
+        raise ValueError("at least one --docx input is required")
+    for docx_path in paths:
+        if not docx_path.exists():
+            raise FileNotFoundError(docx_path)
+        if docx_path.suffix.lower() != ".docx":
+            raise ValueError(f"expected .docx input, got: {docx_path}")
+    return paths
+
+
+def annotate_document_context(
+    paragraphs: list[Paragraph],
+    summaries: list[SheetSummary],
+    docx_path: Path,
+    doc_index: int,
+) -> None:
+    for paragraph in paragraphs:
+        paragraph.source_doc_index = doc_index
+        paragraph.source_doc_name = docx_path.name
+    for summary in summaries:
+        summary.source_doc_index = doc_index
+        summary.source_doc_name = docx_path.name
+
+
+def extract_document_to_dirs(
+    docx_path: Path,
+    extracted_dir: Path,
+    tables_dir: Path,
+    word_tables_dir: Path,
+    max_table_rows: int,
+    doc_index: int,
+) -> tuple[list[Paragraph], int, list[SheetSummary], list[SheetSummary]]:
+    paragraphs, table_count, _embedded = extract_docx_paragraphs(docx_path)
+    word_table_summaries = extract_word_tables(docx_path, word_tables_dir, max_rows=max_table_rows)
+    sheet_summaries = extract_embedded_tables(docx_path, tables_dir, max_rows=max_table_rows)
+    all_table_summaries = sheet_summaries + word_table_summaries
+    annotate_document_context(paragraphs, all_table_summaries, docx_path, doc_index)
+    write_extracted_markdown(
+        extracted_dir / "extracted_document.md",
+        docx_path,
+        paragraphs,
+        table_count,
+        all_table_summaries,
+    )
+    return paragraphs, table_count, sheet_summaries, word_table_summaries
+
+
+def document_meta(docx_path: Path, doc_index: int, paragraphs: list[Paragraph], table_count: int, embedded_count: int, word_count: int) -> dict:
+    return {
+        "index": doc_index,
+        "name": docx_path.name,
+        "path": str(docx_path),
+        "title": paragraphs[0].text if paragraphs else docx_path.stem,
+        "paragraphs": len(paragraphs),
+        "word_tables": table_count,
+        "embedded_sheets": embedded_count,
+        "word_table_csvs": word_count,
+    }
+
+
 def run(args: argparse.Namespace) -> int:
-    docx_path = Path(args.docx).expanduser().resolve()
+    docx_paths = docx_paths_from_args(args.docx)
+    docx_path = docx_paths[0]
     if not docx_path.exists():
         raise FileNotFoundError(docx_path)
     if docx_path.suffix.lower() != ".docx":
@@ -1335,44 +1912,85 @@ def run(args: argparse.Namespace) -> int:
     project_name = args.project_name or safe_name(docx_path.stem)
     out_root = Path(args.out).expanduser().resolve()
     extracted_dir = out_root / "extracted"
-    tables_dir = extracted_dir / "extracted_tables"
-    word_tables_dir = extracted_dir / "word_tables"
     dev_doc_dir = out_root / "dev_doc"
     extracted_dir.mkdir(parents=True, exist_ok=True)
     dev_doc_dir.mkdir(parents=True, exist_ok=True)
 
-    paragraphs, table_count, _embedded = extract_docx_paragraphs(docx_path)
-    word_table_summaries = extract_word_tables(docx_path, word_tables_dir, max_rows=args.max_table_rows)
-    sheet_summaries = extract_embedded_tables(docx_path, tables_dir, max_rows=args.max_table_rows)
-    all_table_summaries = sheet_summaries + word_table_summaries
-    structured_facts = build_structured_facts(all_table_summaries, paragraphs)
+    all_paragraphs: list[Paragraph] = []
+    all_table_summaries: list[SheetSummary] = []
+    documents: list[dict] = []
+    total_embedded = 0
+    total_word_csvs = 0
 
-    write_extracted_markdown(
-        extracted_dir / "extracted_document.md",
-        docx_path,
-        paragraphs,
-        table_count,
-        all_table_summaries,
-    )
+    if len(docx_paths) == 1:
+        tables_dir = extracted_dir / "extracted_tables"
+        word_tables_dir = extracted_dir / "word_tables"
+        paragraphs, table_count, sheet_summaries, word_table_summaries = extract_document_to_dirs(
+            docx_path,
+            extracted_dir,
+            tables_dir,
+            word_tables_dir,
+            args.max_table_rows,
+            doc_index=1,
+        )
+        all_paragraphs.extend(paragraphs)
+        all_table_summaries.extend(sheet_summaries + word_table_summaries)
+        total_embedded += len(sheet_summaries)
+        total_word_csvs += len(word_table_summaries)
+        documents.append(document_meta(docx_path, 1, paragraphs, table_count, len(sheet_summaries), len(word_table_summaries)))
+    else:
+        for doc_index, current_docx in enumerate(docx_paths, start=1):
+            doc_dir = extracted_dir / f"doc_{doc_index:03d}_{safe_name(current_docx.stem)}"
+            tables_dir = doc_dir / "extracted_tables"
+            word_tables_dir = doc_dir / "word_tables"
+            doc_dir.mkdir(parents=True, exist_ok=True)
+            paragraphs, table_count, sheet_summaries, word_table_summaries = extract_document_to_dirs(
+                current_docx,
+                doc_dir,
+                tables_dir,
+                word_tables_dir,
+                args.max_table_rows,
+                doc_index=doc_index,
+            )
+            all_paragraphs.extend(paragraphs)
+            all_table_summaries.extend(sheet_summaries + word_table_summaries)
+            total_embedded += len(sheet_summaries)
+            total_word_csvs += len(word_table_summaries)
+            documents.append(
+                document_meta(current_docx, doc_index, paragraphs, table_count, len(sheet_summaries), len(word_table_summaries))
+            )
+
+    structured_facts = build_structured_facts(all_table_summaries, all_paragraphs)
+    structured_facts["documents"] = documents
+    if len(docx_paths) > 1:
+        structured_facts["merge_policy"] = (
+            "DataEngine/waterline technical facts take precedence for tables, fields, storage, and schedules; "
+            "PRD facts supplement business goals, abnormal rules, KPI logic, and UI aggregation logic. "
+            "Conflicts are recorded in conflicts/questions instead of silently overwriting evidence."
+        )
     (dev_doc_dir / "structured_facts.json").write_text(
         json.dumps(structured_facts, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    write_dev_doc_v2(dev_doc_dir / "dev_doc.md", docx_path, project_name, paragraphs, all_table_summaries, structured_facts)
-    write_questions_v2(dev_doc_dir / "questions.md", paragraphs, all_table_summaries, structured_facts)
+    write_dev_doc_v2(dev_doc_dir / "dev_doc.md", docx_path, project_name, all_paragraphs, all_table_summaries, structured_facts)
+    write_questions_v2(dev_doc_dir / "questions.md", all_paragraphs, all_table_summaries, structured_facts)
 
-    print(f"extracted: {extracted_dir / 'extracted_document.md'}")
+    if len(docx_paths) == 1:
+        print(f"extracted: {extracted_dir / 'extracted_document.md'}")
+    else:
+        print(f"extracted: {extracted_dir}")
     print(f"dev_doc: {dev_doc_dir / 'dev_doc.md'}")
     print(f"questions: {dev_doc_dir / 'questions.md'}")
     print(f"structured_facts: {dev_doc_dir / 'structured_facts.json'}")
-    print(f"embedded_sheets: {len(sheet_summaries)}")
-    print(f"word_tables: {len(word_table_summaries)}")
+    print(f"documents: {len(docx_paths)}")
+    print(f"embedded_sheets: {total_embedded}")
+    print(f"word_tables: {total_word_csvs}")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Extract DOCX text and embedded Excel tables for data development docs.")
-    parser.add_argument("--docx", required=True, help="Input DOCX path.")
+    parser.add_argument("--docx", required=True, action="append", nargs="+", help="Input DOCX path. Repeat or pass multiple values for multi-document projects.")
     parser.add_argument("--out", required=True, help="Output directory, for example outputs/my_project.")
     parser.add_argument("--project-name", default="", help="Optional project display name.")
     parser.add_argument(

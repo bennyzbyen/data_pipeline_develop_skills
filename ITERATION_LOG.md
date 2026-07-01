@@ -380,6 +380,64 @@ Remaining risks:
 - Real deployment still needs fixed `gateway/`, `hbase/`, `fs/` packages and real placeholder replacement.
 - HBase rowkey and downstream delete/overwrite behavior remain deployment/pipeline questions.
 
+### 2026-07-01 - QAS Multi-DOCX PRD + Waterline Extraction
+
+Objective:
+
+- Strengthen `data-doc-to-dev-md` for projects where one requirement is split across a PRD and a DataEngine/waterline document.
+- Use the QAS(六真) PRD and Data Engine waterline documents as the first multi-DOCX regression sample.
+- Fix a COT2026 field-dictionary mismatch where `sixzhen_gps_distance` was mapped by sheet order to the wrong 43-field dictionary instead of the 51-field dictionary shown in the DOCX context.
+
+Inputs:
+
+| Type | Path |
+| --- | --- |
+| PRD | `doc/26028 QAS(六真) PRD.docx` |
+| Waterline | `doc/QAS(六真) Data Engine水线文档.docx` |
+| COT2026 | `D:\Benny\work code\datahub_cot2025\prd\COT2026同步数据到DataEngine的设计文档.docx` |
+
+Findings:
+
+| Finding | Impact | Skill Gap |
+| --- | --- | --- |
+| `extract_docx_bundle.py` accepted only one effective `--docx` value | PRD and waterline facts could not be merged into one codegen handoff | Needed native multi-DOCX aggregation |
+| Many QAS field dictionaries start with `报表路由` / `数据表：qas_*` / `数据粒度` preamble rows | Only one field dictionary was recognized before this iteration | Needed delayed header detection in exported CSVs |
+| Physical ClickHouse targets are in a Word table with `位置 / 数据库 / 数据表名 / 数据表` | `questions.md` falsely reported missing physical target tables | Needed Word target-matrix recognition |
+| Target Management names use `clickhouse_qas_*`, while physical tables are `abnormal_monitor.qas_*` | Field dictionaries could be mapped to wrong targets by sheet order | Needed normalized target matching |
+| PRD contains abnormal rules and KPI aggregation tables | `dev_doc.md` missed business/KPI logic needed by report codegen | Needed PRD rule matrix extraction |
+| COT2026 field dictionaries are not always in Data Utilization order | `sixzhen_gps_distance` was mapped to `embedding_031` with `id / period / code` instead of `embedding_028` with `inksaa_id / period / store_code` | Needed embedding-object正文 context matching before order fallback |
+
+Changes:
+
+| File | Change |
+| --- | --- |
+| `skills/data-doc-to-dev-md/scripts/extract_docx_bundle.py` | Added repeated/multi-value `--docx`, per-document extraction folders, merged facts, provenance, delayed header detection, QAS physical target matching, PRD abnormal/KPI rule extraction, and tighter question generation |
+| `skills/data-doc-to-dev-md/scripts/extract_docx_bundle.py` | Added embedding context extraction from `word/_rels/document.xml.rels` and正文 OLE placement; COT field dictionaries now prefer context-name matches before sheet-order fallback |
+| `skills/data-doc-to-dev-md/scripts/verify_docx_bundle_multidoc.py` | Added standard-library regression fixtures for multi-DOCX extraction, delayed-header tables, and COT context-based field-dictionary matching |
+| `skills/data-doc-to-dev-md/SKILL.md` | Documented multi-DOCX workflow, merged handoff expectations, and warning to review COT order fallback mappings |
+| `skills/data-doc-to-dev-md/references/docx_rules.md` | Added multi-document precedence, delayed header, QAS target, PRD rule-matrix, and COT embedding-context rules |
+| `skills/data-doc-to-dev-md/agents/openai.yaml` | Updated default prompt for multiple DOCX inputs |
+
+Verification:
+
+| Check | Result |
+| --- | --- |
+| Synthetic multi-DOCX regression | Pass |
+| QAS single waterline extraction | Pass, `documents=1`, `embedded_sheets=18`, `word_tables=6` |
+| QAS PRD + waterline extraction | Pass, `documents=2`, `embedded_sheets=38`, `word_tables=68` |
+| QAS structured facts | Pass, `report_sources=26`, `report_targets=11`, `report_physical_targets=11`, `report_schedules=5`, `report_field_mappings=20`, `report_business_rules=8`, `report_kpi_rules=25`, `conflicts=7` |
+| QAS dev doc content | Pass, contains `abnormal_monitor.qas_mw_visit_abnormal_store_daily`, `qas_feedback_detail`, and PRD abnormal/KPI rules |
+| QAS questions | Pass, no false `报表物理目标表未识别` or ClickHouse-only `HBase rowkey` question |
+| COT2026 `sixzhen_gps_distance` mapping | Pass, mapped to `embedding_028_sheet_001_M4DaN0.csv`, `row_count=51`, `inference_method=embedding_context`, first fields include `inksaa_id`, `period`, `store_code` |
+| Skill script `py_compile` | Pass |
+| Skill creator validation | Pass with `PYTHONUTF8=1` on Windows |
+
+Remaining risks:
+
+- `report_sources=26` includes PRD and waterline source evidence; codegen should deduplicate or prefer waterline source rows when generating runtime code.
+- `conflicts=7` intentionally exposes PRD/waterline field-rule differences for review before code generation.
+- The validator script under `.codex\skills\.system\skill-creator` uses platform default text encoding; on Windows, run it with `$env:PYTHONUTF8 = '1'` for UTF-8 skill files.
+
 ### 2026-06-02 - Baseline Build
 
 Objective:
