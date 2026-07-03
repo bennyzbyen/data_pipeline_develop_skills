@@ -16,7 +16,7 @@ Use it to record:
 
 This file is **not** a runtime dependency of any skill.
 
-## 2026-07-03 - Executing King Document/Codegen Handoff Hardening
+## 2026-07-03 - bySKU Report Pipeline Handoff Hardening
 
 ### Sample
 
@@ -31,37 +31,37 @@ This file is **not** a runtime dependency of any skill.
 - `data-doc-to-dev-md` extracted the two documents, but `report-codegen` classified the generated plan as `standard_report`.
 - Baseline `structured_facts.json` had `report_sources`, `report_targets`, and many `report_field_mappings`, but no `report_physical_targets`.
 - NPD/B5 target names were represented as multi-table strings, which made field dictionary to output-table mapping unsafe.
-- Field-rule parsing missed common Executing King column names such as `数据源表`, `数据源字段key`, and `报表字段逻辑`.
+- Field-rule parsing missed common bySKU report column names such as `数据源表`, `数据源字段key`, and `报表字段逻辑`.
 
 ### Changes
 
-- Added Executing King DOCX handoff rules:
-  - `skills/data-doc-to-dev-md/references/executing_king_doc_rules.md`
-- Added Executing King report/codegen patterns:
-  - `skills/report-codegen/references/executing_king_patterns.md`
-- Added Executing King log diagnosis reference:
-  - `skills/data-job-log-debugger/references/executing_king_failure_modes.md`
+- Added generic bySKU report DOCX handoff rules:
+  - `skills/data-doc-to-dev-md/references/bysku_report_doc_rules.md`
+- Added generic bySKU report/codegen patterns:
+  - `skills/report-codegen/references/bysku_report_pipeline_patterns.md`
+- Added generic bySKU report log diagnosis reference:
+  - `skills/data-job-log-debugger/references/bysku_report_failure_modes.md`
 - Updated `data-doc-to-dev-md` extractor:
-  - emits `component_hints` with `component_kind = executing_king_bysku_pipeline`
-  - infers NPD/B5 ClickHouse physical targets as confirmation-required
+  - emits `component_hints` with `component_kind = bysku_report_pipeline`
+  - infers NPD/B5 ClickHouse physical targets as confirmation-required only when document/sample evidence supports them
   - emits `handoff_readiness` with blocked checks when output field dictionaries or FS/SKU/write contracts are incomplete
   - maps `store_np_sku_details` and `store_b5_sku_details` field dictionaries to physical tables when headings prove the table
   - recognizes additional source/logic field aliases
 - Updated `report-codegen` plan builder:
   - consumes `component_hints` and `handoff_readiness`
-  - classifies Executing King bySKU as `executing_king_bysku_pipeline`
+  - classifies bySKU report pipelines as `bysku_report_pipeline`
   - prefers exact field-mapping physical table matches before description fallbacks
 - Updated skill contracts:
-  - `data-sync-codegen` routes Executing King bySKU pipelines to `report-codegen`
-  - `report-codegen` reads Executing King patterns and respects blocked handoff readiness
-  - `data-job-log-debugger` reads Executing King failure modes and compares logs with manifest/plan evidence when provided
+  - `data-sync-codegen` routes bySKU report pipelines to `report-codegen`
+  - `report-codegen` reads bySKU report pipeline patterns and respects blocked handoff readiness
+  - `data-job-log-debugger` reads bySKU report failure modes and compares logs with manifest/plan evidence when provided
 
 ### Verification
 
-- Re-ran extraction on the two Executing King documents.
+- Re-ran extraction on the two bySKU/Executing King sample documents.
 - Rebuilt report plan from the new `structured_facts.json`.
 - Result:
-  - `component_kind = executing_king_bysku_pipeline`
+  - `component_kind = bysku_report_pipeline`
   - `component_hints = 1`
   - `physical_targets = 6`
   - `ready_for_full_codegen = False`, intentionally blocked because summary/ttl field dictionaries and FS/SKU/write contracts still require confirmation

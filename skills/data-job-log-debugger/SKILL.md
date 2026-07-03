@@ -31,7 +31,7 @@ Use this skill when the user provides complete printed logs, copied traceback te
 ## Workflow
 
 1. Read `references/common_failure_modes.md`.
-2. If the log, params, plan, or path mentions 执行为王, bySKU, NPD, B5, `prepare_data`, `cal_npd`, or `cal_b5`, read `references/executing_king_failure_modes.md`.
+2. If the log, params, plan, or path mentions bySKU report pipelines, NPD, B5, `prepare_data`, SKU calculation components, or sample aliases such as 执行为王 / `datahub_executing_king`, read `references/bysku_report_failure_modes.md`.
 3. For text logs, run `scripts/analyze_data_job_log.py --log <log.txt>` when a local log file is available. Use its classification as a starting point, then verify against the full log manually.
 4. For screenshots, visually extract or OCR the exception line, final failure symptom, params snippet, and the 30-50 lines around the failure before classifying.
 5. Extract the first real exception and the final failure symptom.
@@ -52,7 +52,7 @@ Use these sections:
 
 For deployment jobs, always mention whether the log proves that HBase, ClickHouse, FS, and timestamp update steps did or did not run.
 
-For Executing King jobs, always mention whether the log proves the prepare-data HBase export, FS upload/download, NPD/B5 calculation, ClickHouse delete, ClickHouse insert, and R13P cleanup did or did not run.
+For bySKU report pipeline jobs, always mention whether the log proves the prepare-data HBase export, FS upload/download, SKU calculation, ClickHouse delete, ClickHouse insert, and retention cleanup did or did not run.
 
 ## Hard Constraints
 

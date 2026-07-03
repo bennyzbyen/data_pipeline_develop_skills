@@ -86,11 +86,11 @@ python .\skills\data-doc-to-dev-md\scripts\extract_docx_bundle.py `
 - For PRD + waterline projects, technical facts from the waterline/DataEngine document should drive table, field, storage, and schedule facts; PRD facts should supplement business goals, abnormal rules, KPI logic, and UI aggregation logic. Conflicts belong in `questions.md`.
 - Treat `structured_facts.json` as the handoff artifact for codegen skills whenever it exists.
 - Before handing off to `data-sync-codegen` or `report-codegen`, verify that `structured_facts.json` contains the recognized tables, field mappings, schedules, target storage, provenance, and conflicts needed for code generation; if not, record the gap in `questions.md`.
-- For 执行为王 / bySKU / 新品 / B5 PRD + DataEngine document pairs, `structured_facts.json` must expose `component_hints` when the component split is detectable. Use `component_kind = executing_king_bysku_pipeline` for the HBase -> FS bySKU prepare plus NPD/B5 ClickHouse calculation chain, and mark inferred physical tables with `requires_confirmation = true` unless the target table is explicit.
+- For bySKU / SKU-family / 新品 / B5 PRD + DataEngine document pairs, `structured_facts.json` must expose `component_hints` when the component split is detectable. Use `component_kind = bysku_report_pipeline` for the HBase -> FS bySKU prepare plus ClickHouse calculation chain, and mark inferred physical tables with `requires_confirmation = true` unless the target table is explicit.
 - For complex report handoff, include `handoff_readiness` when the extractor can detect blocking gaps such as missing physical targets, unmapped field dictionaries, missing FS/SKU params, or unconfirmed write strategy. Codegen skills should treat blocked readiness as a reason to generate a checklist or one component, not a full production-equivalent project.
 
 ## Reference Loading
 
 - Read `references/docx_rules.md` before changing extraction behavior.
-- Read `references/executing_king_doc_rules.md` when documents mention 执行为王, bySKU, 新品, B5, NPD, R13P, or `execute_king`.
+- Read `references/bysku_report_doc_rules.md` when documents mention bySKU, SKU-family report pipelines, 新品, B5, NPD, R13P, FS handoff plus ClickHouse outputs, or sample aliases such as 执行为王 / `execute_king`.
 - Use `assets/dev_doc_template.md` whenever generating or revising a development document.

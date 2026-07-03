@@ -1,6 +1,6 @@
-# Executing King Failure Modes
+# bySKU Report Pipeline Failure Modes
 
-Use this reference when DataEngine/DataHub logs mention 执行为王, bySKU, `datahub_executing_king`, `prepare_data`, `cal_npd`, `cal_b5`, NPD, B5, `store_np_sku_*`, or `store_b5_sku_*`.
+Use this reference when DataEngine/DataHub logs mention a bySKU HBase/FS/ClickHouse report pipeline, `prepare_data`, SKU calculation components, NPD, B5, detail/summary/ttl outputs, or sample aliases such as 执行为王 / `datahub_executing_king`.
 
 ## Stage Checklist
 
@@ -32,7 +32,7 @@ When logs are available, always report whether each of these ran:
 
 - HBase source read
 - FS upload or download
-- NPD/B5 calculation output
+- SKU calculation output
 - ClickHouse delete
 - ClickHouse insert
 - R13P cleanup

@@ -39,7 +39,7 @@ Use this skill when the user asks to generate, review, or modify Python code for
 1. Read `references/cot_sync_patterns.md`.
 2. Read `references/platform_client_usage.md` before generating or modifying code that uses `gateway/`, `fs/`, or `hbase`.
 3. If `structured_facts.json` exists, load it before writing code and use it as the source/target/table/schedule matrix.
-   - If it contains `component_hints[].component_kind = executing_king_bysku_pipeline`, stop using the COT sync scaffold and route the project to `report-codegen`; that shape is a multi-component report pipeline with FS bySKU handoff and ClickHouse outputs, not a table synchronization job.
+   - If it contains `component_hints[].component_kind = bysku_report_pipeline`, stop using the COT sync scaffold and route the project to `report-codegen`; that shape is a multi-component report pipeline with FS bySKU handoff and ClickHouse outputs, not a table synchronization job.
 4. Prefer `scripts/scaffold_cot_sync_project.py` for COT yearly sync scaffolding. Pass `--structured-facts`, `--output-dir`, and optionally `--extracted-tables` when embedded CSV field dictionaries are available from document extraction.
 5. Use `assets/minimal_sync_project/` as the fallback scaffold if the script is not appropriate.
 6. If `prod_code_sample/cot_202604101607` exists, inspect it only as optional workspace-local guidance or regression comparison after the blind generation step; never require it.
@@ -72,7 +72,7 @@ Generated code may be simpler than the production sample, but it must preserve t
 - Do not modify fixed platform package implementations under `gateway/`, `hbase/`, or `fs/`; source/target/table-specific logic belongs in COT modules and config.
 - Do not bypass the project Gateway facade for HBase/FS work; generated business code should prefer `Client`/`GateWayClient` -> `getHbaseClient(fs_root_dir=...)` / `getFsClient()` and avoid direct token/header/API calls.
 - Do not widen scope into report KPI development; use `report-codegen` for report projects.
-- Do not treat 执行为王 bySKU / 新品 / B5 pipelines as COT sync work when the dev doc exposes report sources, field mappings, or `executing_king_bysku_pipeline` component hints.
+- Do not treat bySKU / SKU-family / 新品 / B5 report pipelines as COT sync work when the dev doc exposes report sources, field mappings, or `bysku_report_pipeline` component hints.
 - Do not fail just because `prod_code_sample` or the supervisor portal repository is unavailable; fall back to bundled assets and references.
 - Do not encode absolute `skill_lab`, `doc`, `outputs`, or `prod_code_sample` paths into generated project files.
 - Do not claim runtime parity unless the generated project passes the fake runtime semantics verifier or equivalent deployment-log evidence.

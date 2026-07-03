@@ -111,11 +111,11 @@ def infer_component_kind(
         return "hbase_prepare_pipeline"
     all_text = " ".join([target_storage, schedule_text, source_text])
     if (
-        "execute_king" in all_text
-        and "zo_bysku_detail" in all_text
+        ("bysku" in all_text or "zo_bysku_detail" in all_text)
+        and ("clickhouse" in all_text or "store_" in all_text)
         and ("b5" in all_text or "npd" in all_text or "sku" in all_text)
     ):
-        return "executing_king_bysku_pipeline"
+        return "bysku_report_pipeline"
     return "standard_report"
 
 
