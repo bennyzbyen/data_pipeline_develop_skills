@@ -31,7 +31,7 @@ When a target directory is empty or no local/remote sample is available, use `as
 
 - replace placeholder source and target table config
 - implement only confirmed KPI logic
-- keep credentials as placeholders
+- keep newly generated credential-like values as placeholders
 - preserve existing `gateway/`, `hbase/`, and `fs/` package files; if absent, only create minimal placeholders needed for import compatibility
 - add confirmation comments only for unresolved business rules
 - keep scaffold `NotImplementedError` guards until real source reads, transformations, and writes are implemented
@@ -70,6 +70,16 @@ Treat `sv_store_display_rack` as a separate project path. It uses its own mappin
 - `DataProcess`: cleans, joins, calculates KPI fields, aggregates detail and summary outputs.
 - `DataStorage`: deletes/replaces target period/date and inserts ClickHouse or stores evidence files.
 - `params_configs/rowkey_config.py`: manual confirmation surface for HBase rowkey rules when the report writes HBase or triggers downstream HBase writes.
+
+## Platform Package Usage
+
+Read `platform_client_usage.md` before generating or modifying code that uses `gateway/`, `fs/`, or `hbase`.
+
+- Use the project Gateway facade (`Client` or `GateWayClient`) to obtain `getHbaseClient(fs_root_dir=...)` and `getFsClient()`.
+- Do not call Gateway token/header/API helpers or raw `requests` from report business modules.
+- Default FS operations are `exists`, `listdir`, `copy_to_local`, and `copy_from_local(..., overwrite=True)`.
+- Default HBase operations are `query_df`, `insert_df(..., mode="import")`, `insert_file(..., sep="\x1D")`, `delete_df`, and table-level `truncate` when explicitly configured.
+- Do not generate `mode="insert"`, `HbaseClient.delete(...)`, direct `fs.operate_common` calls, `open`, `append`, `rename`, `mkdirs`, direct chunk upload, or manual `info:` column-family prefixes unless the existing project already uses that exact pattern.
 
 ## DataSource Pattern
 
@@ -156,7 +166,7 @@ For generated code, verify:
 - params JSON parses
 - all referenced config names exist
 - all final output columns are defined
-- no real credentials are present
+- generated examples/templates do not introduce real credentials unexpectedly
 - `DataProcess.run()` does not return empty placeholder outputs
 - `DataStorage.run()` does not only log planned writes
 - `scripts/verify_report_runtime_semantics.py --project-dir <generated-project> --project-type supervisor_portal` passes for the main supervisor portal path
@@ -205,7 +215,7 @@ Keep these values configurable:
 - `is_run_pipeline`: whether to activate downstream pipeline after export.
 - FS root and pipeline process UIDs as placeholders in config.
 
-Do not copy real app keys, app secrets, API keys, process UIDs, or URLs from production samples. Keep placeholders unless the user explicitly supplies values.
+Existing project files may already contain real app keys, app secrets, API keys, process UIDs, or URLs. Preserve them when editing the same in-scope file unless the user asks to change them. Do not copy real values from production samples into new scaffold files, examples, generated params, or documentation unless the user explicitly asks.
 
 Generate or preserve `params_configs/rowkey_config.py` for HBase prepare projects. It should include fill-in comments for:
 

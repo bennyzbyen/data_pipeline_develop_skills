@@ -91,7 +91,7 @@ class ClientWrapper:
 
     def initialize_hbase_client(self):
         self.initialize_gateway_client()
-        self.hbase_client = self.gateway_client.getHbaseClient()
+        self.hbase_client = self.gateway_client.getHbaseClient(fs_root_dir=fs_root_dir)
 
     def initialize_mysql_engine(self, mysql_url):
         if not mysql_url:
@@ -132,11 +132,7 @@ class TimeStamp_Update:
                 self.fs_client.copy_to_local(full_update_time_path, str(local_path))
                 df = pd.read_csv(local_path, sep="\t")
             else:
-                if not self.fs_client.exists(last_timestamp_dir):
-                    self.fs_client.mkdir(last_timestamp_dir)
                 df = pd.DataFrame({"date": ["1970-01-01 00:00:00"]})
-                df.to_csv(local_path, sep="\t", index=False)
-                self.fs_client.copy_from_local(str(local_path), full_update_time_path, overwrite=True)
             last_timestamp = str(df["date"].iloc[0])
             logger.info("last timestamp for {} is {}", mysql_table, last_timestamp)
             return last_timestamp

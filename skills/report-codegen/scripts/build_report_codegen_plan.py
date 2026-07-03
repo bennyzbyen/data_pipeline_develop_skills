@@ -69,12 +69,15 @@ def match_mapping_physical_target(mapping: Dict[str, Any], physical_targets: Lis
     for target in physical_targets:
         target_table = clean_text(target.get("table"))
         target_name = clean_text(target.get("table_name"))
-        target_desc = clean_text(target.get("description"))
         if inferred_table and inferred_table == target_table:
             return target
-        if inferred_desc and inferred_desc == target_desc:
-            return target
         if inferred_name and inferred_name in {target_table, target_name}:
+            return target
+    if inferred_table or inferred_name:
+        return {}
+    for target in physical_targets:
+        target_desc = clean_text(target.get("description"))
+        if inferred_desc and inferred_desc == target_desc:
             return target
     return {}
 
@@ -84,7 +87,13 @@ def infer_component_kind(
     physical_targets: List[Dict[str, Any]],
     logical_targets: List[Dict[str, Any]],
     schedules: List[Dict[str, Any]],
+    component_hints: List[Dict[str, Any]] | None = None,
 ) -> str:
+    for hint in component_hints or []:
+        kind = clean_text(hint.get("component_kind"))
+        if kind:
+            return kind
+
     target_storage = " ".join(
         clean_text(item.get("storage")).lower()
         for item in [*physical_targets, *logical_targets]
@@ -100,6 +109,13 @@ def infer_component_kind(
         return "hbase_prepare_pipeline"
     if "hbase" in target_storage and "l0_cmt.sellout" in source_text:
         return "hbase_prepare_pipeline"
+    all_text = " ".join([target_storage, schedule_text, source_text])
+    if (
+        "execute_king" in all_text
+        and "zo_bysku_detail" in all_text
+        and ("b5" in all_text or "npd" in all_text or "sku" in all_text)
+    ):
+        return "executing_king_bysku_pipeline"
     return "standard_report"
 
 
@@ -109,11 +125,12 @@ def build_plan(facts: Dict[str, Any]) -> Dict[str, Any]:
     logical_targets = facts.get("report_targets", [])
     field_mappings = facts.get("report_field_mappings", [])
     schedules = facts.get("report_schedules", [])
+    component_hints = facts.get("component_hints", [])
 
     outputs = []
     for index, mapping in enumerate(field_mappings):
         logical = logical_targets[index] if index < len(logical_targets) else {}
-        physical = match_physical_target(logical, physical_targets) or match_mapping_physical_target(mapping, physical_targets)
+        physical = match_mapping_physical_target(mapping, physical_targets) or match_physical_target(logical, physical_targets)
         if not physical and len(physical_targets) == 1:
             logical_storage = clean_text(logical.get("storage")).lower()
             physical_storage = clean_text(physical_targets[0].get("storage")).lower()
@@ -154,13 +171,15 @@ def build_plan(facts: Dict[str, Any]) -> Dict[str, Any]:
             "logical_target_count": len(logical_targets),
             "output_count": len(outputs),
             "schedule_count": len(schedules),
-            "component_kind": infer_component_kind(sources, physical_targets, logical_targets, schedules),
+            "component_kind": infer_component_kind(sources, physical_targets, logical_targets, schedules, component_hints),
         },
         "sources": grouped_sources,
         "physical_targets": physical_targets,
         "logical_targets": logical_targets,
         "outputs": outputs,
         "schedules": schedules,
+        "component_hints": component_hints,
+        "handoff_readiness": facts.get("handoff_readiness", []),
         "inferences": facts.get("inferences", []),
     }
 
@@ -194,6 +213,43 @@ def render_markdown(plan: Dict[str, Any]) -> str:
             f"- Schedules: {summary['schedule_count']}",
             f"- Component kind: {summary.get('component_kind', 'standard_report')}",
             "",
+        ]
+    )
+    if plan.get("component_hints"):
+        lines.extend(
+            [
+                "## Component Hints",
+                "",
+                markdown_table(
+                    plan["component_hints"],
+                    ["component_kind", "handoff_to", "reference", "intermediate_storage"],
+                ),
+                "",
+            ]
+        )
+    if plan.get("handoff_readiness"):
+        readiness_rows = []
+        for item in plan["handoff_readiness"]:
+            readiness_rows.append(
+                {
+                    "component_kind": item.get("component_kind", ""),
+                    "ready_for_full_codegen": item.get("ready_for_full_codegen", ""),
+                    "checks": "; ".join(
+                        f"{check.get('name')}={check.get('status')}"
+                        for check in item.get("checks", [])
+                    ),
+                }
+            )
+        lines.extend(
+            [
+                "## Handoff Readiness",
+                "",
+                markdown_table(readiness_rows, ["component_kind", "ready_for_full_codegen", "checks"]),
+                "",
+            ]
+        )
+    lines.extend(
+        [
             "## Sources",
             "",
         ]

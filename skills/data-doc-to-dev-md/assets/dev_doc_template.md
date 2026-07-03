@@ -7,6 +7,7 @@
 - Business goal:
 - Primary reference code:
 - Structured facts file:
+- Component hints:
 
 ## 2. Source Tables
 
@@ -89,6 +90,8 @@ For report docs, include source, target, and field-logic matrices:
 - DataStorage:
 - HBase:
 - ClickHouse:
+- FS:
+- Diagnostic manifest / plan:
 - Final metrics:
 
 ## 12. Open Questions

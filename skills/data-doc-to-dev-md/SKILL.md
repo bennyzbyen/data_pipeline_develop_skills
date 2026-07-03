@@ -1,6 +1,6 @@
 ---
 name: data-doc-to-dev-md
-description: Convert one or more PRD, DataEngine, DataHub, waterline, COT, HBase, ClickHouse, Superview, and report requirement DOCX files into AI-readable Markdown development documents, extracting正文, embedded Excel tables, source/target tables, field dictionaries, calculation logic, scheduling, rerun rules, provenance, and open questions for Python data synchronization or report development.
+description: Use when converting one or more PRD, DataEngine, DataHub, waterline, COT, HBase, ClickHouse, Superview, or report requirement DOCX files into AI-readable development documents for Python data synchronization or report development.
 ---
 
 # Data Doc To Dev Markdown
@@ -15,6 +15,8 @@ Use this skill when the user provides PRD, DataEngine, DataHub, waterline, repor
 - Treat Word正文表格 as primary evidence too, especially Data Source, Data Target, HBase field dictionaries, and logic tables that are not embedded Excel workbooks.
 - Preserve original Chinese business terms, field names, table names, and calculation text.
 - Never invent field mappings, rowkey rules, credentials, or production paths.
+- Existing documents may contain database connection strings, Gateway app keys, app secrets, hosts, ports, URLs, or tokens. Extract them only when they are requirement evidence; do not refuse the task because they exist.
+- Do not create new real credentials in generated `dev_doc.md`, `structured_facts.json`, `questions.md`, examples, or copied snippets. Use placeholders when writing new credential-like values, and keep sensitive values out of summaries unless the user explicitly asks to preserve them.
 
 ## Inputs
 
@@ -83,8 +85,12 @@ python .\skills\data-doc-to-dev-md\scripts\extract_docx_bundle.py `
 - For report documents, `dev_doc.md` must expose target output fields and calculation/filter/join facts well enough for `report-codegen` to implement output-equivalent logic without reopening the original DOCX. If field rules live in Word正文表格 such as `字段名 / 字段key / 数据源位置 / 数据表 / 数据源对应的字段 / 计算逻辑`, they must be extracted into `report_field_mappings`.
 - For PRD + waterline projects, technical facts from the waterline/DataEngine document should drive table, field, storage, and schedule facts; PRD facts should supplement business goals, abnormal rules, KPI logic, and UI aggregation logic. Conflicts belong in `questions.md`.
 - Treat `structured_facts.json` as the handoff artifact for codegen skills whenever it exists.
+- Before handing off to `data-sync-codegen` or `report-codegen`, verify that `structured_facts.json` contains the recognized tables, field mappings, schedules, target storage, provenance, and conflicts needed for code generation; if not, record the gap in `questions.md`.
+- For 执行为王 / bySKU / 新品 / B5 PRD + DataEngine document pairs, `structured_facts.json` must expose `component_hints` when the component split is detectable. Use `component_kind = executing_king_bysku_pipeline` for the HBase -> FS bySKU prepare plus NPD/B5 ClickHouse calculation chain, and mark inferred physical tables with `requires_confirmation = true` unless the target table is explicit.
+- For complex report handoff, include `handoff_readiness` when the extractor can detect blocking gaps such as missing physical targets, unmapped field dictionaries, missing FS/SKU params, or unconfirmed write strategy. Codegen skills should treat blocked readiness as a reason to generate a checklist or one component, not a full production-equivalent project.
 
 ## Reference Loading
 
 - Read `references/docx_rules.md` before changing extraction behavior.
+- Read `references/executing_king_doc_rules.md` when documents mention 执行为王, bySKU, 新品, B5, NPD, R13P, or `execute_king`.
 - Use `assets/dev_doc_template.md` whenever generating or revising a development document.

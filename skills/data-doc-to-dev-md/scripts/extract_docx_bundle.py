@@ -821,9 +821,10 @@ def report_field_rows(rows: list[dict[str, str]]) -> list[dict]:
         if not key and not field_name:
             continue
         formula = (
-            cell_value(row, "计算逻辑", "字段公式", "数据源+字段公式", "数据源 + 字段公式")
+            cell_value(row, "计算逻辑", "报表字段逻辑", "字段逻辑", "字段公式", "数据源+字段公式", "数据源 + 字段公式")
             or cell_value_contains(row, "字段公式")
             or cell_value_contains(row, "数据源", "公式")
+            or cell_value_contains(row, "报表字段", "逻辑")
         )
         fields.append(
             {
@@ -832,8 +833,8 @@ def report_field_rows(rows: list[dict[str, str]]) -> list[dict]:
                 "source_category": cell_value(row, "数据源分类"),
                 "source_desc": cell_value(row, "数据源描述", "来源库表", "数据源"),
                 "source_storage": cell_value(row, "数据源位置", "存放地"),
-                "source_table": cell_value(row, "数据表"),
-                "source_field": cell_value(row, "数据源对应的字段", "来源字段"),
+                "source_table": cell_value(row, "数据表", "数据源表", "源数据表"),
+                "source_field": cell_value(row, "数据源对应的字段", "数据源字段key", "数据源字段 key", "来源字段"),
                 "calculation_logic": formula,
                 "eo_order_logic": cell_value_contains(row, "EO+ERP"),
                 "dms_order_logic": cell_value_contains(row, "DMS"),
@@ -867,6 +868,8 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
         "report_field_mappings": [],
         "report_business_rules": [],
         "report_kpi_rules": [],
+        "component_hints": [],
+        "handoff_readiness": [],
         "inferences": [],
     }
     field_dicts: list[dict] = []
@@ -1341,6 +1344,7 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                     "source": mapping.get("source_doc_name", ""),
                 }
 
+    infer_executing_king_component_hint(facts, paragraphs)
     return facts
 
 
@@ -1383,6 +1387,19 @@ def facts_summary_lines(facts: dict) -> list[str]:
         lines.append(f"Detected PRD abnormal/business rules: {len(facts['report_business_rules'])}.")
     if facts.get("report_kpi_rules"):
         lines.append(f"Detected PRD KPI/aggregation rules: {len(facts['report_kpi_rules'])}.")
+    if facts.get("component_hints"):
+        kinds = ", ".join(item.get("component_kind", "") for item in facts["component_hints"] if item.get("component_kind"))
+        lines.append(f"Detected component hints: {kinds}.")
+    if facts.get("handoff_readiness"):
+        blocked = [
+            item.get("component_kind", "")
+            for item in facts["handoff_readiness"]
+            if not item.get("ready_for_full_codegen", False)
+        ]
+        if blocked:
+            lines.append(f"Handoff readiness blocked for: {', '.join(blocked)}.")
+        else:
+            lines.append("Handoff readiness: ready for full codegen.")
     if facts.get("field_dictionaries"):
         lines.append(f"Detected {len(facts['field_dictionaries'])} field dictionary sheets.")
     if facts.get("schedules"):
@@ -1405,6 +1422,173 @@ def flattened_report_fields(facts: dict) -> list[dict]:
                 }
             )
     return rows
+
+
+def project_text_blob(facts: dict, paragraphs: list[Paragraph] | None = None) -> str:
+    parts: list[str] = []
+    if paragraphs:
+        parts.extend(paragraph.text for paragraph in paragraphs)
+    for key in [
+        "report_sources",
+        "report_targets",
+        "report_physical_targets",
+        "report_clickhouse_targets",
+        "report_field_mappings",
+        "report_schedules",
+    ]:
+        parts.append(json.dumps(facts.get(key, []), ensure_ascii=False))
+    return "\n".join(parts)
+
+
+def infer_executing_king_component_hint(facts: dict, paragraphs: list[Paragraph] | None = None) -> None:
+    blob = project_text_blob(facts, paragraphs)
+    lower_blob = blob.lower()
+    if not (
+        "执行为王" in blob
+        and ("bysku" in lower_blob or "bySKU" in blob)
+        and ("新品" in blob or "b5" in lower_blob)
+        and "clickhouse" in lower_blob
+    ):
+        return
+
+    target_tables = [
+        "store_np_sku_details",
+        "store_np_sku_summary",
+        "store_np_sku_ttl",
+        "store_b5_sku_details",
+        "store_b5_sku_summary",
+        "store_b5_sku_ttl",
+    ]
+    database = "supervisor_dashboard" if "supervisor_dashboard" in lower_blob else ""
+    physical_by_table: dict[str, dict] = {}
+    for table_name in target_tables:
+        table = f"{database}.{table_name}" if database else table_name
+        target = {
+            "storage": "ClickHouse",
+            "database": database,
+            "table_name": table_name,
+            "table": table,
+            "description": "执行为王新品/B5 ClickHouse output",
+            "source_kind": "inferred_executing_king_bysku",
+            "confidence": "medium",
+            "requires_confirmation": True,
+        }
+        physical_by_table[table_name] = target
+        append_unique_by_key(facts["report_physical_targets"], dict(target), "table")
+        append_unique_by_key(facts["report_clickhouse_targets"], dict(target), "table")
+
+    for mapping in facts.get("report_field_mappings", []):
+        mapping_text = " ".join(
+            [
+                str(mapping.get("declared_table", "")),
+                str(mapping.get("source_context", "")),
+                str(mapping.get("inferred_target_name", "")),
+                str(mapping.get("inferred_target_description", "")),
+            ]
+        ).lower()
+        for table_name, target in physical_by_table.items():
+            if table_name not in mapping_text:
+                continue
+            mapping["inferred_target_name"] = table_name
+            mapping["inferred_physical_table"] = target["table"]
+            mapping["inferred_target_description"] = target["description"]
+            mapping["target_requires_confirmation"] = True
+            facts["inferences"].append(
+                f"{mapping.get('csv', '')} is mapped to {target['table']} by executing_king table evidence."
+            )
+            break
+
+    hint = {
+        "component_kind": "executing_king_bysku_pipeline",
+        "handoff_to": "report-codegen",
+        "reference": "references/executing_king_patterns.md",
+        "source_tables": sorted(set(re.findall(r"l2_cot_perfect_store\.zo_[A-Za-z0-9_]+", lower_blob))),
+        "intermediate_storage": "FS bySKU gzip files",
+        "components": [
+            {
+                "name": "prepare_data",
+                "role": "Export period-scoped HBase bySKU rows to compressed FS CSV files.",
+                "expected_file_pattern": "zo_bysku_detail_<period>.csv.gz",
+            },
+            {
+                "name": "cal_npd",
+                "role": "Read FS bySKU files and calculate new-product detail, summary, and ttl ClickHouse outputs.",
+                "target_tables": target_tables[:3],
+            },
+            {
+                "name": "cal_b5",
+                "role": "Read FS bySKU files and calculate B5 detail, summary, and ttl ClickHouse outputs.",
+                "target_tables": target_tables[3:],
+            },
+        ],
+        "output_groups": [
+            {
+                "name": "npd",
+                "physical_tables": target_tables[:3],
+                "delete_condition": "mars_week = <current week>",
+            },
+            {
+                "name": "b5",
+                "physical_tables": target_tables[3:],
+                "delete_condition": "mars_week = <current week>",
+            },
+        ],
+        "write_strategy": [
+            "Delete ClickHouse current-week rows by mars_week before insert.",
+            "Roll-delete periods older than the latest R13P threshold after successful inserts.",
+            "Keep inferred physical target tables as confirmation-required unless production code or deployment config proves them.",
+        ],
+        "required_confirmations": [
+            "Confirm FS bySKU directory and file type.",
+            "Confirm SKU XML/params source for sku_map, sku_cal_range, sku_ttl_filter, and active SKU flags.",
+            "Confirm ClickHouse physical tables and delete predicates.",
+        ],
+    }
+    facts.setdefault("component_hints", []).append(hint)
+    facts["inferences"].append(
+        "Detected executing_king_bysku_pipeline from 执行为王 + bySKU + 新品/B5 + ClickHouse evidence."
+    )
+
+    mapped_tables = {
+        str(mapping.get("inferred_physical_table", "")).rsplit(".", 1)[-1]
+        for mapping in facts.get("report_field_mappings", [])
+        if mapping.get("inferred_physical_table")
+    }
+    missing_mappings = [table for table in target_tables if table not in mapped_tables]
+    readiness_checks = [
+        {
+            "name": "component_kind",
+            "status": "ok",
+            "detail": "Detected executing_king_bysku_pipeline.",
+        },
+        {
+            "name": "physical_targets",
+            "status": "needs_confirmation",
+            "detail": "NPD/B5 ClickHouse physical tables were inferred from PRD text and must be confirmed.",
+        },
+        {
+            "name": "field_mapping_to_outputs",
+            "status": "blocked" if missing_mappings else "ok",
+            "detail": "Missing field dictionaries for: " + ", ".join(missing_mappings) if missing_mappings else "All inferred outputs have field mappings.",
+        },
+        {
+            "name": "fs_and_sku_params",
+            "status": "needs_confirmation",
+            "detail": "FS directory, file extension, and SKU XML/params source must be confirmed before codegen.",
+        },
+        {
+            "name": "write_strategy",
+            "status": "needs_confirmation",
+            "detail": "Confirm mars_week delete predicates and R13P retention cleanup before deployment.",
+        },
+    ]
+    facts.setdefault("handoff_readiness", []).append(
+        {
+            "component_kind": "executing_king_bysku_pipeline",
+            "ready_for_full_codegen": not missing_mappings,
+            "checks": readiness_checks,
+        }
+    )
 
 
 def write_dev_doc(
@@ -1627,6 +1811,15 @@ def write_dev_doc_v2(
             ("Description", "description"),
         ],
     )
+    component_hints = markdown_table(
+        facts.get("component_hints", []),
+        [
+            ("Component Kind", "component_kind"),
+            ("Handoff To", "handoff_to"),
+            ("Reference", "reference"),
+            ("Intermediate Storage", "intermediate_storage"),
+        ],
+    )
     business_rules = markdown_table(
         facts.get("report_business_rules", []),
         [
@@ -1737,6 +1930,7 @@ def write_dev_doc_v2(
 - Original title: {title}
 - Project type: {project_type}
 {overview_facts}
+{("Component handoff hints:\n\n" + component_hints) if component_hints else ""}
 
 ## 2. Source Tables
 
@@ -1788,7 +1982,16 @@ def write_questions_v2(path: Path, paragraphs: list[Paragraph], sheet_summaries:
     target_storage = " ".join(str(item.get("storage", "")).lower() for item in physical_targets + facts.get("report_targets", []))
     has_clickhouse_target = bool(facts.get("report_clickhouse_targets")) or "clickhouse" in target_storage
     has_hbase_target = "hbase" in target_storage
+    component_kinds = {item.get("component_kind") for item in facts.get("component_hints", [])}
     questions = ["生成代码时目标项目目录是哪一个？", "配置文件中的 app_key/app_secret/token/IP 是否全部使用占位符？"]
+    if "executing_king_bysku_pipeline" in component_kinds:
+        questions.extend(
+            [
+                "执行为王 bySKU 中间 FS 目录、文件压缩格式、文件覆盖策略需要确认。",
+                "执行为王 SKU 参数来源需要确认：sku_map、sku_cal_range、sku_ttl_filter、sku_is_active 是来自 XML、params JSON 还是外部配置。",
+                "执行为王 ClickHouse 物理表名与删除条件需要确认：明细/汇总/TTL 是否按 mars_week 删除，历史保留是否按 R13P period 阈值滚动删除。",
+            ]
+        )
     if facts.get("cot_report_tables"):
         questions.extend(
             [

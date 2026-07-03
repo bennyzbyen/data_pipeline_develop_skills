@@ -16,6 +16,60 @@ Use it to record:
 
 This file is **not** a runtime dependency of any skill.
 
+## 2026-07-03 - Executing King Document/Codegen Handoff Hardening
+
+### Sample
+
+- Documents:
+  - `doc/25053 FoS - HQ BI 执行为王新品+B5数据 PRD.docx`
+  - `doc/执行为王 Data Engine 设计文档.docx`
+- Production code:
+  - `prod_code_sample/datahub_executing_king`
+
+### RED Baseline
+
+- `data-doc-to-dev-md` extracted the two documents, but `report-codegen` classified the generated plan as `standard_report`.
+- Baseline `structured_facts.json` had `report_sources`, `report_targets`, and many `report_field_mappings`, but no `report_physical_targets`.
+- NPD/B5 target names were represented as multi-table strings, which made field dictionary to output-table mapping unsafe.
+- Field-rule parsing missed common Executing King column names such as `数据源表`, `数据源字段key`, and `报表字段逻辑`.
+
+### Changes
+
+- Added Executing King DOCX handoff rules:
+  - `skills/data-doc-to-dev-md/references/executing_king_doc_rules.md`
+- Added Executing King report/codegen patterns:
+  - `skills/report-codegen/references/executing_king_patterns.md`
+- Added Executing King log diagnosis reference:
+  - `skills/data-job-log-debugger/references/executing_king_failure_modes.md`
+- Updated `data-doc-to-dev-md` extractor:
+  - emits `component_hints` with `component_kind = executing_king_bysku_pipeline`
+  - infers NPD/B5 ClickHouse physical targets as confirmation-required
+  - emits `handoff_readiness` with blocked checks when output field dictionaries or FS/SKU/write contracts are incomplete
+  - maps `store_np_sku_details` and `store_b5_sku_details` field dictionaries to physical tables when headings prove the table
+  - recognizes additional source/logic field aliases
+- Updated `report-codegen` plan builder:
+  - consumes `component_hints` and `handoff_readiness`
+  - classifies Executing King bySKU as `executing_king_bysku_pipeline`
+  - prefers exact field-mapping physical table matches before description fallbacks
+- Updated skill contracts:
+  - `data-sync-codegen` routes Executing King bySKU pipelines to `report-codegen`
+  - `report-codegen` reads Executing King patterns and respects blocked handoff readiness
+  - `data-job-log-debugger` reads Executing King failure modes and compares logs with manifest/plan evidence when provided
+
+### Verification
+
+- Re-ran extraction on the two Executing King documents.
+- Rebuilt report plan from the new `structured_facts.json`.
+- Result:
+  - `component_kind = executing_king_bysku_pipeline`
+  - `component_hints = 1`
+  - `physical_targets = 6`
+  - `ready_for_full_codegen = False`, intentionally blocked because summary/ttl field dictionaries and FS/SKU/write contracts still require confirmation
+  - field parsing improved to `source_field_nonempty = 862 / 885`, `calculation_logic_nonempty = 455 / 885`
+  - NPD and B5 detail mappings now resolve to distinct physical tables:
+    - `store_np_sku_details -> supervisor_dashboard.store_np_sku_details`
+    - `store_b5_sku_details -> supervisor_dashboard.store_b5_sku_details`
+
 ## Repository Role
 
 | Path | Role |
@@ -248,6 +302,104 @@ These artifacts currently exist or may exist under `outputs/` and are not synced
 ```
 
 ## Iterations
+
+### 2026-07-03 - Gateway FS HBase Production Usage Hardening
+
+Objective:
+
+- Learn common `gateway`, `fs`, and `hbase` usage from `prod_code_sample`.
+- Steer generated sync/report code toward production-common facade calls and away from uncommon low-level package APIs.
+- Keep fixed platform package implementations unchanged.
+
+Inputs:
+
+| Type | Path |
+| --- | --- |
+| Production samples | `prod_code_sample/` |
+| COT regression facts | `outputs/cot_regression_after_supervisor_round4/dev_doc/structured_facts.json` |
+| Supervisor regression project | `outputs/supervisor_portal_blind_codegen_round6/project` |
+| Vehicle regression project | `outputs/vehicle_blind_codegen_round7/project` |
+| Fos HBase prepare project | `outputs/fos_store_dts_iter6/project` |
+
+Findings:
+
+| Finding | Impact | Skill Gap |
+| --- | --- | --- |
+| Business code normally uses `Client` or `GateWayClient` facade before HBase/FS access | Generated code should not call Gateway token/header/API helpers directly | Needed explicit facade-first rules |
+| FS business usage is mostly `exists`, `listdir`, `copy_to_local`, and `copy_from_local(..., overwrite=True)` | Codex can overuse low-level or uncommon FS functions | Needed default/avoid lists |
+| HBase business usage is mostly `query_df`, `insert_df(mode="import")`, `insert_file(..., sep="\x1D")`, `delete_df`, and explicit `truncate` | Codex can choose incomplete or uncommon functions such as `mode="insert"` or `HbaseClient.delete(...)` | Needed HBase operation selection rules |
+| Sync template initialized HBase without `fs_root_dir` and used `fs_client.mkdir` for initial timestamp setup | Generated COT scaffold drifted from production-common FS/HBase usage | Needed template correction |
+
+Changes:
+
+| File | Change |
+| --- | --- |
+| `skills/data-sync-codegen/references/platform_client_usage.md` | Added gateway/FS/HBase facade-first usage rules, default operations, rowkey naming, and avoid list |
+| `skills/report-codegen/references/platform_client_usage.md` | Added report-oriented gateway/FS/HBase usage rules with local fake-runtime injection guidance |
+| `skills/data-sync-codegen/SKILL.md` | Added the platform usage reference as required reading before generating `gateway`/`fs`/`hbase` code |
+| `skills/report-codegen/SKILL.md` | Added the platform usage reference as required reading before generating `gateway`/`fs`/`hbase` code |
+| `skills/data-sync-codegen/references/cot_sync_patterns.md` | Added platform package usage rules and HBase write cautions |
+| `skills/report-codegen/references/supervisor_portal_patterns.md` | Added platform package usage rules |
+| `skills/report-codegen/references/vehicle_verification_patterns.md` | Added vehicle/report FS/HBase usage constraints |
+| `skills/data-sync-codegen/assets/minimal_sync_project/plugin_common.py.template` | Passes `fs_root_dir` to `getHbaseClient` and no longer creates/uploads an initial remote timestamp file during timestamp fetch |
+
+Verification:
+
+| Check | Result |
+| --- | --- |
+| Read-only subagent audits for FS, Gateway, HBase | Pass |
+| Skill creator quick validation for all 4 skills | Pass |
+| Skill script `py_compile` | Pass |
+| COT scaffold generation from regression facts | Pass |
+| Generated COT scaffold compile | Pass |
+| Generated COT runtime verifier | Pass, 6 cases |
+| Supervisor portal runtime verifier | Pass |
+| Vehicle verification runtime verifier | Pass |
+| Fos HBase prepare project compile/static platform-call scan | Pass |
+| Deploy dry run | Pass |
+
+Notes:
+
+- `verify_report_runtime_semantics.py` currently supports only `supervisor_portal` and `vehicle_verification`; it does not expose an `hbase_prepare_pipeline` project type. Fos HBase prepare validation used compile/static checks in this iteration.
+
+### 2026-07-03 - Skill Trigger And Credential Handling Hardening
+
+Objective:
+
+- Strengthen trigger descriptions and shared operating constraints for the four data-development skills.
+- Clarify that existing code, logs, documents, and production samples may contain database connection strings, Gateway app keys, app secrets, hosts, ports, URLs, or tokens.
+- Keep new generated examples/templates/docs placeholder-safe without refusing in-scope work on existing files that already contain credentials.
+
+Target skills:
+
+- `data-doc-to-dev-md`
+- `data-sync-codegen`
+- `report-codegen`
+- `data-job-log-debugger`
+
+Changes:
+
+| File | Change |
+| --- | --- |
+| `skills/data-doc-to-dev-md/SKILL.md` | Changed frontmatter description to `Use when...`, added sensitive evidence handling, and strengthened `structured_facts.json` handoff expectations |
+| `skills/data-sync-codegen/SKILL.md` | Changed frontmatter description to `Use when...` and replaced absolute credential placeholder wording with preserve-existing / placeholder-new rules |
+| `skills/report-codegen/SKILL.md` | Changed frontmatter description to `Use when...` and replaced absolute credential placeholder wording with preserve-existing / placeholder-new rules |
+| `skills/data-job-log-debugger/SKILL.md` | Changed frontmatter description to `Use when...` and added log/screenshot credential handling guidance |
+| `skills/data-sync-codegen/references/cot_sync_patterns.md` | Clarified generated scaffold credential handling and verification wording |
+| `skills/report-codegen/references/supervisor_portal_patterns.md` | Clarified generated scaffold credential handling and verification wording |
+
+Verification:
+
+| Check | Result |
+| --- | --- |
+| Skill creator quick validation for all 4 skills | Pass |
+| Skill script `py_compile` | Pass |
+| Deploy dry run | Pass |
+| Residual absolute credential-ban wording scan | Pass |
+
+Remaining risks:
+
+- This iteration only hardens trigger/instruction wording. It does not add automated lint rules for future skill wording regressions.
 
 ### 2026-06-03 - HBase Rowkey Confirmation Config
 

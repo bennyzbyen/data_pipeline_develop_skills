@@ -42,13 +42,23 @@ Expected generated structure:
 
 Only generate modules that are needed by the current requirement.
 
+## Platform Package Usage
+
+Read `platform_client_usage.md` before generating or modifying code that uses `gateway/`, `fs/`, or `hbase`.
+
+- Use the project Gateway facade (`Client` or `GateWayClient`) to obtain `getHbaseClient(fs_root_dir=...)` and `getFsClient()`.
+- Do not call Gateway token/header/API helpers or raw `requests` from business sync modules.
+- Default FS operations are `exists`, `listdir`, `copy_to_local`, and `copy_from_local(..., overwrite=True)`.
+- Default HBase operations are `query_df`, `insert_df(..., mode="import")`, `insert_file(..., sep="\x1D")`, `delete_df`, and table-level `truncate` when explicitly configured.
+- Do not generate `mode="insert"`, `HbaseClient.delete(...)`, direct `fs.operate_common` calls, `open`, `append`, `rename`, `mkdirs`, direct chunk upload, or manual `info:` column-family prefixes unless the existing project already uses that exact pattern.
+
 ## Bundled Scaffold
 
 When a target directory is empty or no local production sample exists, use `assets/minimal_sync_project/` as the scaffold source. The scaffold is self-contained for normal code generation and includes entry points, timestamp handling, MySQL export, with-period/without-period HBase writers, and ClickHouse writers. It must still be adapted to the dev document:
 
 - replace placeholder table lists and field lists
 - decide whether with-period, without-period, or both modules are needed
-- keep all credentials as placeholders
+- keep newly generated credential-like values as placeholders
 - preserve existing `gateway/`, `hbase/`, and `fs/` package files; if absent, only create minimal placeholders needed for import compatibility
 - add TODO comments only for genuinely unconfirmed business facts
 
@@ -192,6 +202,8 @@ Production-compatible behavior:
 - For full period refresh, compare or delete old rowkeys before inserting when the requirement needs historical correction.
 - For with-period full refresh, production style queries old HBase rowkeys by period range, compares with newly generated rowkeys, deletes stale rowkeys, then inserts the new gzipped files.
 - Write HBase files with `\x1D` separator and `rowkey` as the first column when matching COT style.
+- For DataFrame HBase writes, use `HBASE_ROW_KEY` when the local wrapper requires it. Exported HBase data normally returns `rowkey`; file insert wrappers can map `rowkey` to `HBASE_ROW_KEY`.
+- Do not use `mode="insert"` for generated HBase writes; sample wrappers leave sync insert paths incomplete or unsupported.
 
 ## ClickHouse Rules
 
@@ -217,7 +229,8 @@ Production-compatible behavior:
 - Put table lists, field lists, environment placeholders, and path constants in config modules.
 - Keep source database routing in config, for example report_ps_p, store_report_generator, and store_report table groups.
 - Keep table-level exceptions in config, not in sync control flow.
-- Real app keys, secrets, passwords, tokens, hosts, and ports must be placeholders:
+- Existing project files may already contain real app keys, secrets, passwords, tokens, hosts, or ports. Preserve them when editing the same in-scope file unless the user asks to change them.
+- New scaffold files, examples, generated params, and copied sample-derived code must use placeholders unless the user explicitly asks to insert real values:
   - `<APP_KEY>`
   - `<APP_SECRET>`
   - `<CLICKHOUSE_HOST>`
@@ -232,7 +245,7 @@ Local verification is limited to:
 - `python -m py_compile` for generated `.py` files
 - `scripts/verify_cot_runtime_semantics.py --project-dir <generated-project>` for generated COT scaffold runtime semantics
 - JSON parse check for `params.example.json`
-- Manual scan that no real credentials were inserted
+- Manual scan that generated examples/templates did not introduce real credentials unexpectedly
 
 Deployment verification should inspect logs for:
 

@@ -10,6 +10,7 @@ Use this reference when a report has complex HBase + FS + ClickHouse data flow, 
 - `DataProcess.run()` returns one detail DataFrame and multiple summary DataFrames.
 - `DataStorage.run()` writes several ClickHouse tables for the same period.
 - `gateway/`, `hbase/`, and `fs/` are fixed platform packages. Preserve existing package files and keep vehicle-specific logic in `data_utils/` and `params_configs/`.
+- Read `platform_client_usage.md` before generating or modifying code that uses `gateway/`, `fs/`, or `hbase`.
 
 ## DataSource Details
 
@@ -21,6 +22,7 @@ Use this reference when a report has complex HBase + FS + ClickHouse data flow, 
 - Evidence files can be uploaded back to FS for auditability.
 - For vehicle verification docs, source matrix rows map directly to HBase export config for `Data Hub Hbase` rows and FS directory config for `Gateway项目目录` / `Datahub 数据共享目录` rows.
 - Preserve source matrix join/filter notes as implementation rules in `DataProcess`; do not leave them only as comments.
+- Use the Gateway facade (`Client` or `GateWayClient`) to obtain `getHbaseClient(fs_root_dir=...)` and `getFsClient()`; do not call Gateway token/header/API helpers directly from report modules.
 
 Additional generated DataSource rules:
 
@@ -29,6 +31,9 @@ Additional generated DataSource rules:
 - HBase reads with `is_row_prefixs` / `row_prefixs` enabled should use prefixes `0` through `9`.
 - FS paths containing `{Period}`, `{period}`, or `{P}` should be rendered from the resolved time range.
 - Support injected `hbase_data`, `fs_data`, `hbase_client`, `fs_client`, or `gateway_client` for local verification without connecting to production.
+- Default FS reads should use `exists/listdir/copy_to_local` plus local Pandas parsing and local temp cleanup.
+- Default FS evidence writes should use `copy_from_local(..., overwrite=True)`.
+- Do not generate `open`, `append`, `rename`, `mkdirs`, direct chunk upload, or direct `fs.operate_common` calls unless the existing project already uses that exact pattern.
 
 ## DataProcess Details
 
@@ -99,6 +104,7 @@ Use these rules when generating vehicle verification / vehicle reconcile reports
 
 - Upload intermediate EO header and DMS header CSVs to FS evidence paths when the dev doc mentions data trace or Gateway project retention.
 - Evidence upload failures should be logged, but should not silently change report output.
+- HBase writes, when required, should use `insert_df(..., mode="import")` or `insert_file(..., sep="\x1D")`; do not generate `mode="insert"` or `HbaseClient.delete(...)`.
 
 ## DataStorage Details
 
