@@ -206,8 +206,6 @@ def validate_workbook(path: Path) -> dict[str, Any]:
             errors.append(f"Pipeline row {row['_row']} has unsupported enable value: {row.get('*enable')}")
         if row.get("*is_octopus") not in {"0", "1"}:
             errors.append(f"Pipeline row {row['_row']} has unsupported is_octopus value: {row.get('*is_octopus')}")
-        if not row.get("pipeline_trigger"):
-            warnings.append(f"Pipeline row {row['_row']} pipeline_trigger is blank.")
         if not row.get("task1_link_target_names"):
             warnings.append(f"Pipeline row {row['_row']} task1_link_target_names is blank.")
         if not row.get("task1_mlp_params"):

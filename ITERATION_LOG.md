@@ -53,6 +53,7 @@ Follow-up hardening:
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py` | Fills `data_utilization_description` from waterline Data Utilization Management and fills catalog registration fields from `report_catalog_basic_info` |
 | `skills/pipeline-excel-builder/scripts/validate_pipeline_excel.py` | Warns if owner/name columns contain email addresses or digits |
 | `skills/pipeline-excel-builder/SKILL.md` and `references/fill_rules.md` | Require owner/name columns to use person-style names without digits; email addresses stay in email columns |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py` and `scripts/validate_pipeline_excel.py` | Leave Pipeline timing columns blank for every row and stop warning on blank `pipeline_trigger` |
 
 ### Verification
 
@@ -69,7 +70,8 @@ Follow-up hardening:
   - `data_utilization_description` is filled as `六真异常数据`.
   - Catalog registration fields are filled for 11 QAS targets from Catalog Basic Info.
   - Owner/name columns use person-style names without digits, for example `tracy.zhang1@effem.com` -> `Tracy Zhang`.
-  - Conservative blanks remain as warnings/questions: `clickhouse_soldto_details_p` field dictionary, period/pending schedules, task-target links, MLP params, and QAS document conflicts.
+  - Pipeline timing columns are intentionally blank: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
+  - Conservative blanks remain as warnings/questions: `clickhouse_soldto_details_p` field dictionary, task-target links, MLP params, and QAS document conflicts.
 - Schema regression:
   - `prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`: pass, 0 errors.
   - `prod_[Execute_King_2025]_Pipeline_Export_File_20260708114300.xlsx`: pass, 0 errors.
@@ -81,7 +83,7 @@ Follow-up hardening:
 
 ### Remaining Risks
 
-- The generated workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, `clickhouse_soldto_details_p` fields, and non-daily schedules.
+- The generated workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, `clickhouse_soldto_details_p` fields, and any schedule setup that must be handled outside the generated timing columns.
 - Production Excel samples are intentionally not committed to Git.
 
 ## 2026-07-03 - bySKU Report Pipeline Handoff Hardening

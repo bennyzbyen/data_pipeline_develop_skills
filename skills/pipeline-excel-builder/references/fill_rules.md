@@ -44,8 +44,7 @@
 
 - Use `report_schedules`.
 - Set `enable = 1`, `is_octopus = 0`.
-- Convert daily schedules like `每天早上9:00` or `每天 09:30` to `每1天 HH:mm`.
-- Leave period schedules such as `PnW2D2 早上9:00` blank unless the user confirms the platform trigger syntax.
+- Leave all timing columns blank for every pipeline row: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
 - Leave `task1_link_target_names` and `task1_mlp_params` blank when not explicitly confirmed.
 - Use `pipeline_status_notification = FINISHED,FAILED` as the conservative default only when the document does not provide a value.
 
@@ -55,7 +54,6 @@ Always write questions for:
 
 - Conflicting target counts.
 - Targets without field dictionaries.
-- Period or pending schedules.
 - Blank task-target links.
 - Blank MLP params.
 - Blank owner/email/catalog fields when the target appears to require catalog registration.

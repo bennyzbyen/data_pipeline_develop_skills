@@ -437,20 +437,6 @@ def build_field_rows(
     return rows
 
 
-def convert_daily_schedule(schedule: str) -> tuple[str, str]:
-    value = clean(schedule)
-    if not value or value in {"待定", "TBD", "tbd"}:
-        return "", "pending"
-    if "每天" not in value and "每日" not in value:
-        return "", "unsupported"
-    match = re.search(r"(\d{1,2})\s*[:：]\s*(\d{2})", value)
-    if not match:
-        return "", "unsupported"
-    hour = int(match.group(1))
-    minute = int(match.group(2))
-    return f"每1天 {hour:02d}:{minute:02d}", ""
-
-
 def build_pipeline_rows(
     facts: dict[str, Any],
     data_utilization: str,
@@ -463,12 +449,6 @@ def build_pipeline_rows(
         if not pipeline_name or pipeline_name in seen:
             continue
         seen.add(pipeline_name)
-        trigger, reason = convert_daily_schedule(clean(item.get("schedule")))
-        if reason:
-            questions.append(
-                f"Pipeline: `{pipeline_name}` schedule `{clean(item.get('schedule'))}` was left blank "
-                "because the platform trigger syntax is not confirmed."
-            )
         task_name = clean(item.get("task_name"))
         rows.append(
             {
@@ -477,7 +457,7 @@ def build_pipeline_rows(
                 "pipeline_description": clean(item.get("description")),
                 "*enable": "1",
                 "*is_octopus": "0",
-                "pipeline_trigger": trigger,
+                "pipeline_trigger": "",
                 "pipeline_trigger_start": "",
                 "pipeline_trigger_end": "",
                 "pipeline_status_notification": "FINISHED,FAILED",
