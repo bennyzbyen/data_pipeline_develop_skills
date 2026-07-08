@@ -16,6 +16,58 @@ Use it to record:
 
 This file is **not** a runtime dependency of any skill.
 
+## 2026-07-08 - Pipeline Excel Builder Skill
+
+### Objective
+
+- Add `pipeline-excel-builder` for generating DataHub/DataEngine Pipeline Export Excel workbooks from waterline design documents.
+- Use the QAS abnormal-data project as the first acceptance sample.
+
+### Inputs
+
+| Type | Path |
+| --- | --- |
+| Waterline document | `doc/QAS(六真) Data Engine水线文档.docx` |
+| PRD | `doc/26028 QAS(六真) PRD.docx` |
+| Empty target template | `templates/uat_[QAS_Abnormal_Data]_Pipeline_Export_File_20260708105821.xlsx` |
+| Production schema examples | `templates/prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`, `templates/prod_[Execute_King_2025]_Pipeline_Export_File_20260708114300.xlsx`, `templates/prod_[fos_vehicle_verification]_Pipeline_Export_File_20260708114318.xlsx` |
+
+### Changes
+
+| File | Change |
+| --- | --- |
+| `skills/pipeline-excel-builder/SKILL.md` | Added the new skill contract, workflow, inputs/outputs, and hard constraints |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py` | Added workbook generator from `structured_facts.json` and an empty Pipeline Export workbook |
+| `skills/pipeline-excel-builder/scripts/validate_pipeline_excel.py` | Added workbook schema, required-column, reference, type, and warning validation |
+| `skills/pipeline-excel-builder/references/pipeline_export_schema.md` | Documented fixed sheets, headers, storage types, and field type mappings |
+| `skills/pipeline-excel-builder/references/fill_rules.md` | Documented conservative fill rules and question generation policy |
+| `deploy_skills.ps1` | Added `pipeline-excel-builder` to the default sync list |
+| `.gitignore` | Added `templates/` so production Excel exports remain local-only |
+
+### Verification
+
+- Generated QAS output:
+  - `outputs/pipeline_excel_builder_qas_round1/QAS_Abnormal_Data_Pipeline_Export_File.xlsx`
+  - `outputs/pipeline_excel_builder_qas_round1/questions.md`
+  - `outputs/pipeline_excel_builder_qas_round1/validation.json`
+- Acceptance result:
+  - `Data Utilization`: 1 generated row.
+  - `Target & Catalog`: 11 generated rows.
+  - `Target Field`: 291 generated rows from QAS field mappings.
+  - `Pipeline`: 5 generated rows.
+  - Validator result: pass, 0 errors.
+  - Conservative blanks remain as warnings/questions: owner/email/catalog fields, `clickhouse_soldto_details_p` field dictionary, period/pending schedules, task-target links, MLP params, and QAS document conflicts.
+- Schema regression:
+  - `prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`: pass, 0 errors.
+  - `prod_[Execute_King_2025]_Pipeline_Export_File_20260708114300.xlsx`: pass, 0 errors.
+  - `prod_[fos_vehicle_verification]_Pipeline_Export_File_20260708114318.xlsx`: pass, 0 errors.
+  - `uat_[QAS_Abnormal_Data]_Pipeline_Export_File_20260708105821.xlsx`: pass, 0 errors.
+
+### Remaining Risks
+
+- The generated workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, owner/email/catalog fields, and non-daily schedules.
+- Production Excel samples are intentionally not committed to Git.
+
 ## 2026-07-03 - bySKU Report Pipeline Handoff Hardening
 
 ### Sample
@@ -91,6 +143,7 @@ This file is **not** a runtime dependency of any skill.
 | `data-sync-codegen` | Generate COT/DataEngine data sync Python project code from `dev_doc.md` / `structured_facts.json` | MVP usable for COT-style sync |
 | `report-codegen` | Generate DataEngine report project code with `DataSource / DataProcess / DataStorage` | About 80% usable for supervisor/vehicle-style reports |
 | `data-job-log-debugger` | Diagnose deployed DataEngine/DataHub job failures from full logs or screenshots | MVP usable for common failures |
+| `pipeline-excel-builder` | Generate and validate DataHub/DataEngine Pipeline Export Excel workbooks from waterline docs and structured facts | MVP in progress with QAS acceptance sample |
 
 ### Key Design Decisions
 

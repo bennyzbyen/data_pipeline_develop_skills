@@ -8,6 +8,7 @@ This repository maintains Codex Skills for Python data development workflows.
 - `data-sync-codegen`: generate COT/DataEngine data synchronization project scaffolds.
 - `report-codegen`: generate DataEngine report development project scaffolds.
 - `data-job-log-debugger`: diagnose deployed DataEngine/DataHub job failures from logs or screenshots.
+- `pipeline-excel-builder`: build DataHub/DataEngine Pipeline Export Excel workbooks from waterline documents.
 
 ## Repository Layout
 
@@ -24,6 +25,7 @@ Local samples and generated outputs are intentionally excluded from Git:
 doc/
 prod_code_sample/
 outputs/
+templates/
 ```
 
 Those directories may contain internal documents, production code, generated artifacts, logs, paths, keys, or tokens.

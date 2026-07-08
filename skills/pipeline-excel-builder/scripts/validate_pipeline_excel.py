@@ -1,0 +1,234 @@
+#!/usr/bin/env python3
+"""Validate a DataHub Pipeline Export Excel workbook."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from openpyxl import load_workbook
+
+
+DATA_UTILIZATION_SHEET = "Data Utilization"
+TARGET_SHEET = "Target & Catalog"
+FIELD_SHEET = "Target Field"
+PIPELINE_SHEET = "Pipeline"
+
+EXPECTED_HEADERS = {
+    DATA_UTILIZATION_SHEET: ["*data_utilization_name", "data_utilization_description"],
+    TARGET_SHEET: [
+        "*data_utilization_name",
+        "*target_name",
+        "target_description",
+        "data_storage_type",
+        "db",
+        "table_name",
+        "table_description",
+        "dataset_name",
+        "dataset_title",
+        "dataset_description",
+        "dataset_business_owner",
+        "dataset_business_owner_email",
+        "dataset_it_owner",
+        "dataset_it_owner_email",
+        "dataset_fe",
+        "dataset_fe_email",
+        "dataset_it_bp",
+        "dataset_it_bp_email",
+        "dataset_data_engineer",
+        "dataset_data_engineer_email",
+        "dataset_source",
+    ],
+    FIELD_SHEET: [
+        "*target_name",
+        "*field_name",
+        "*field_label",
+        "field_description",
+        "*field_type",
+        "field_length",
+        "field_sequence",
+    ],
+    PIPELINE_SHEET: [
+        "*data_utilization_name",
+        "*pipeline_name",
+        "pipeline_description",
+        "*enable",
+        "*is_octopus",
+        "pipeline_trigger",
+        "pipeline_trigger_start",
+        "pipeline_trigger_end",
+        "pipeline_status_notification",
+        "pipeline_notification_emails",
+        "task1_name",
+        "task1_description",
+        "task1_link_target_names",
+        "task1_mlp_params",
+    ],
+}
+
+ALLOWED_STORAGE_TYPES = {"", "HBASE", "HDFS", "CLICKHOUSE", "SV_CLICKHOUSE", "MSSQL", "MYSQL"}
+ALLOWED_FIELD_TYPES = {"TEXT", "INT", "LONG", "BOOLEAN", "DECIMAL", "DATE", "TIME", "TIMESTAMP"}
+
+
+def clean(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def normalize_field_type(value: str) -> str:
+    key = clean(value).upper().replace("DATATIME", "DATETIME")
+    if key.startswith("VARCHAR") or key.startswith("CHAR") or key in {"STRING", "TEXT"}:
+        return "TEXT"
+    if key in {"INT", "INTEGER"}:
+        return "INT"
+    if key in {"LONG", "BIGINT"}:
+        return "LONG"
+    if key.startswith("DECIMAL") or key in {"DOUBLE", "FLOAT", "NUMBER"}:
+        return "DECIMAL"
+    if key in {"DATE", "DATA"}:
+        return "DATE"
+    if key in {"DATETIME", "TIMESTAMP"}:
+        return "TIMESTAMP"
+    if key in {"BOOLEAN", "BOOL"}:
+        return "BOOLEAN"
+    return clean(value)
+
+
+def headers(ws, count: int) -> list[str]:
+    return [clean(ws.cell(2, col).value) for col in range(1, count + 1)]
+
+
+def row_dicts(ws, expected_headers: list[str]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for row_idx in range(3, ws.max_row + 1):
+        row = {header: clean(ws.cell(row_idx, col).value) for col, header in enumerate(expected_headers, start=1)}
+        if any(row.values()):
+            row["_row"] = str(row_idx)
+            rows.append(row)
+    return rows
+
+
+def required_headers(expected_headers: list[str]) -> list[str]:
+    return [header for header in expected_headers if header.startswith("*")]
+
+
+def add_duplicate_errors(values: list[str], label: str, errors: list[str]) -> None:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if not value:
+            continue
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    for value in sorted(duplicates):
+        errors.append(f"Duplicate {label}: {value}")
+
+
+def validate_workbook(path: Path) -> dict[str, Any]:
+    wb = load_workbook(path, data_only=False)
+    errors: list[str] = []
+    warnings: list[str] = []
+    row_counts: dict[str, int] = {}
+    data: dict[str, list[dict[str, str]]] = {}
+
+    for sheet, expected in EXPECTED_HEADERS.items():
+        if sheet not in wb.sheetnames:
+            errors.append(f"Missing sheet: {sheet}")
+            continue
+        ws = wb[sheet]
+        actual = headers(ws, len(expected))
+        if actual != expected:
+            errors.append(f"{sheet} headers mismatch: expected={expected!r} actual={actual!r}")
+            continue
+        rows = row_dicts(ws, expected)
+        data[sheet] = rows
+        row_counts[sheet] = len(rows)
+        for row in rows:
+            for header in required_headers(expected):
+                if not row.get(header):
+                    errors.append(f"{sheet} row {row['_row']} missing required column {header}")
+
+    dus = data.get(DATA_UTILIZATION_SHEET, [])
+    targets = data.get(TARGET_SHEET, [])
+    fields = data.get(FIELD_SHEET, [])
+    pipelines = data.get(PIPELINE_SHEET, [])
+
+    du_names = {row["*data_utilization_name"] for row in dus if row.get("*data_utilization_name")}
+    target_names = {row["*target_name"] for row in targets if row.get("*target_name")}
+
+    add_duplicate_errors([row.get("*data_utilization_name", "") for row in dus], "data_utilization_name", errors)
+    add_duplicate_errors([row.get("*target_name", "") for row in targets], "target_name", errors)
+    add_duplicate_errors([row.get("*pipeline_name", "") for row in pipelines], "pipeline_name", errors)
+
+    for row in targets:
+        if row.get("*data_utilization_name") not in du_names:
+            errors.append(f"Target & Catalog row {row['_row']} references unknown data_utilization_name: {row.get('*data_utilization_name')}")
+        storage = row.get("data_storage_type", "")
+        if storage not in ALLOWED_STORAGE_TYPES:
+            errors.append(f"Target & Catalog row {row['_row']} has unsupported data_storage_type: {storage}")
+        if not row.get("dataset_business_owner_email"):
+            warnings.append(f"Target & Catalog row {row['_row']} dataset owner/email fields are blank.")
+
+    for row in fields:
+        target = row.get("*target_name")
+        if target not in target_names:
+            errors.append(f"Target Field row {row['_row']} references unknown target_name: {target}")
+        raw_field_type = row.get("*field_type")
+        if normalize_field_type(raw_field_type) not in ALLOWED_FIELD_TYPES:
+            errors.append(f"Target Field row {row['_row']} has unsupported field_type: {raw_field_type}")
+
+    target_field_counts: dict[str, int] = {}
+    for row in fields:
+        target = row.get("*target_name", "")
+        target_field_counts[target] = target_field_counts.get(target, 0) + 1
+    for target in sorted(target_names):
+        if target_field_counts.get(target, 0) == 0:
+            warnings.append(f"Target has no field rows: {target}")
+
+    for row in pipelines:
+        if row.get("*data_utilization_name") not in du_names:
+            errors.append(f"Pipeline row {row['_row']} references unknown data_utilization_name: {row.get('*data_utilization_name')}")
+        if row.get("*enable") not in {"0", "1"}:
+            errors.append(f"Pipeline row {row['_row']} has unsupported enable value: {row.get('*enable')}")
+        if row.get("*is_octopus") not in {"0", "1"}:
+            errors.append(f"Pipeline row {row['_row']} has unsupported is_octopus value: {row.get('*is_octopus')}")
+        if not row.get("pipeline_trigger"):
+            warnings.append(f"Pipeline row {row['_row']} pipeline_trigger is blank.")
+        if not row.get("task1_link_target_names"):
+            warnings.append(f"Pipeline row {row['_row']} task1_link_target_names is blank.")
+        if not row.get("task1_mlp_params"):
+            warnings.append(f"Pipeline row {row['_row']} task1_mlp_params is blank.")
+
+    return {
+        "ok": not errors,
+        "workbook": str(path),
+        "row_counts": row_counts,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Validate a Pipeline Export Excel workbook.")
+    parser.add_argument("--xlsx", required=True, type=Path)
+    parser.add_argument("--json-out", type=Path)
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    result = validate_workbook(args.xlsx)
+    text = json.dumps(result, ensure_ascii=False, indent=2)
+    if args.json_out:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(text + "\n", encoding="utf-8")
+    print(text)
+    return 0 if result["ok"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

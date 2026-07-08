@@ -10,6 +10,7 @@ __pycache__/
 # These may contain internal requirements, production code, paths, keys, tokens, or logs.
 doc/
 prod_code_sample/
+templates/
 
 # Local secrets and environment overrides
 .env

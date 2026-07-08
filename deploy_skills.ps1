@@ -6,7 +6,8 @@ param(
         "data-doc-to-dev-md",
         "data-sync-codegen",
         "report-codegen",
-        "data-job-log-debugger"
+        "data-job-log-debugger",
+        "pipeline-excel-builder"
     ),
     [switch]$DryRun,
     [switch]$Clean
