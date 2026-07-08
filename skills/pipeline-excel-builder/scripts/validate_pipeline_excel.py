@@ -172,6 +172,16 @@ def validate_workbook(path: Path) -> dict[str, Any]:
             errors.append(f"Target & Catalog row {row['_row']} has unsupported data_storage_type: {storage}")
         if not row.get("dataset_business_owner_email"):
             warnings.append(f"Target & Catalog row {row['_row']} dataset owner/email fields are blank.")
+        for name_column in [
+            "dataset_business_owner",
+            "dataset_it_owner",
+            "dataset_fe",
+            "dataset_it_bp",
+            "dataset_data_engineer",
+        ]:
+            name_value = row.get(name_column, "")
+            if "@" in name_value or any(ch.isdigit() for ch in name_value):
+                warnings.append(f"Target & Catalog row {row['_row']} {name_column} should be a person-style name without email or digits.")
 
     for row in fields:
         target = row.get("*target_name")

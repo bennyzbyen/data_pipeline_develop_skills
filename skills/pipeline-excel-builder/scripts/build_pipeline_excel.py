@@ -210,6 +210,49 @@ def normalize_table_key(value: str) -> str:
     return value
 
 
+def extract_email(value: str) -> str:
+    match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", clean(value))
+    return match.group(0) if match else ""
+
+
+def strip_digits(value: str) -> str:
+    return re.sub(r"\d+", "", clean(value)).strip()
+
+
+def contact_name(value: str) -> str:
+    value = clean(value)
+    email = extract_email(value)
+    if email:
+        non_email = clean(value.replace(email, ""))
+        non_email = re.sub(r"[<>()；;，,]+", " ", non_email).strip()
+        if non_email:
+            return strip_digits(non_email)
+        local = email.split("@", 1)[0]
+        local = strip_digits(local)
+        parts = [part for part in re.split(r"[._\-\s]+", local) if part]
+        return " ".join(part[:1].upper() + part[1:] for part in parts)
+    return strip_digits(value)
+
+
+def data_utilization_descriptions(facts: dict[str, Any]) -> dict[str, str]:
+    descriptions: dict[str, str] = {}
+    for item in facts.get("data_utilizations", []):
+        name = clean(item.get("name"))
+        description = clean(item.get("description"))
+        if name and description and name not in descriptions:
+            descriptions[name] = description
+    return descriptions
+
+
+def catalog_info_by_table(facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    catalog: dict[str, dict[str, Any]] = {}
+    for item in facts.get("report_catalog_basic_info", []):
+        key = normalize_table_key(clean(item.get("data_item")))
+        if key and key not in catalog:
+            catalog[key] = item
+    return catalog
+
+
 def find_physical(target: dict[str, Any], physical_targets: list[dict[str, Any]]) -> dict[str, Any]:
     physical_table = clean(target.get("physical_table"))
     physical_desc = clean(target.get("physical_description") or target.get("description"))
@@ -234,12 +277,13 @@ def build_data_utilization_rows(facts: dict[str, Any], override_name: str, proje
         names = ordered_unique([clean(item.get("data_utilization")) for item in facts.get("report_targets", [])])
     if not names and project_name:
         names = [project_name.lower()]
+    descriptions = data_utilization_descriptions(facts)
     rows = []
     for name in names:
         rows.append(
             {
                 "*data_utilization_name": name,
-                "data_utilization_description": "",
+                "data_utilization_description": descriptions.get(name, ""),
             }
         )
     return rows
@@ -251,8 +295,10 @@ def build_target_rows(
     questions: list[str],
 ) -> list[dict[str, Any]]:
     physical_targets = facts.get("report_physical_targets", [])
+    catalog_by_table = catalog_info_by_table(facts)
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
+    missing_catalog: list[str] = []
     for item in facts.get("report_targets", []):
         target_name = clean(item.get("target_name"))
         if not target_name or target_name in seen:
@@ -265,6 +311,16 @@ def build_target_rows(
         database = clean(physical.get("database") or item.get("database"))
         db, table_name = split_physical_table(table, database, mapped_storage)
         description = clean(item.get("description") or physical.get("description"))
+        catalog = catalog_by_table.get(normalize_table_key(table_name)) or catalog_by_table.get(normalize_table_key(table))
+        if not catalog:
+            missing_catalog.append(table_name or target_name)
+        business_owner_value = clean(catalog.get("business_owner")) if catalog else ""
+        it_owner_value = clean(catalog.get("it_owner")) if catalog else ""
+        fe_value = clean(catalog.get("fe")) if catalog else ""
+        it_bp_value = clean(catalog.get("it_bp")) if catalog else ""
+        data_engineer_value = clean(catalog.get("data_engineer")) if catalog else ""
+        catalog_title = clean(catalog.get("title")) if catalog else ""
+        catalog_data_item = clean(catalog.get("data_item")) if catalog else ""
         rows.append(
             {
                 "*data_utilization_name": data_utilization or clean(item.get("data_utilization")),
@@ -274,24 +330,24 @@ def build_target_rows(
                 "db": db,
                 "table_name": table_name,
                 "table_description": clean(physical.get("description") or item.get("physical_description") or description),
-                "dataset_name": "",
-                "dataset_title": "",
-                "dataset_description": "",
-                "dataset_business_owner": "",
-                "dataset_business_owner_email": "",
-                "dataset_it_owner": "",
-                "dataset_it_owner_email": "",
-                "dataset_fe": "",
-                "dataset_fe_email": "",
-                "dataset_it_bp": "",
-                "dataset_it_bp_email": "",
-                "dataset_data_engineer": "",
-                "dataset_data_engineer_email": "",
+                "dataset_name": catalog_data_item,
+                "dataset_title": catalog_title,
+                "dataset_description": catalog_title,
+                "dataset_business_owner": contact_name(business_owner_value),
+                "dataset_business_owner_email": extract_email(business_owner_value),
+                "dataset_it_owner": contact_name(it_owner_value),
+                "dataset_it_owner_email": extract_email(it_owner_value),
+                "dataset_fe": contact_name(fe_value),
+                "dataset_fe_email": extract_email(fe_value),
+                "dataset_it_bp": contact_name(it_bp_value),
+                "dataset_it_bp_email": extract_email(it_bp_value),
+                "dataset_data_engineer": contact_name(data_engineer_value),
+                "dataset_data_engineer_email": extract_email(data_engineer_value),
                 "dataset_source": "",
             }
         )
-    if rows:
-        questions.append("Target & Catalog: catalog owner/email/source fields are left blank unless confirmed by the user.")
+    for item in missing_catalog:
+        questions.append(f"Target & Catalog: no Catalog Basic Info row matched `{item}`.")
     return rows
 
 

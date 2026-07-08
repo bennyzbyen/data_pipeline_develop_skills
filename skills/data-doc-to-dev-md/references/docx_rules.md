@@ -65,6 +65,7 @@ For DataEngine report docs, detect these embedded Excel shapes:
 - Physical ClickHouse target matrix: headers like `Description`, `Data Storage`, `Database`, `Table Name`.
 - Word正文 or embedded target matrix: headers like `位置`, `数据库`, `数据表名`, `数据表`; for `Superview Clickhouse` rows, build physical tables such as `abnormal_monitor.qas_mw_visit_abnormal_store_daily`.
 - Target Management: headers like `Data Utilization Name`, `Target Name`, `Target Description`, `Data Storage`.
+- Catalog Basic Info: headers like `数据项`, `Title`, `IT Owner&Email`, `Biz Owner&Email`, `FE&Email`, `IT BP & Email`, `Data Engineer & Email`; preserve table names, titles, owner emails, FE, BP, and data engineer values for Pipeline Export catalog registration.
 - Pipeline schedule: headers like `Data Utilization Name`, `Pipline_Name`, `task1 name`, `Description`, or `Pipeline Name` + `定时任务`.
 - Target field logic: headers like `Key`/`字段 key`/`字段key`, `字段名称`/`字段名`, `数据源位置`, `数据表`, `数据源描述`/`来源库表`, `数据源对应的字段`/`来源字段`, `计算逻辑`.
 - Word正文 field tables may contain an explanatory first row before the actual header row; the extractor should detect the real header row and skip the preamble.

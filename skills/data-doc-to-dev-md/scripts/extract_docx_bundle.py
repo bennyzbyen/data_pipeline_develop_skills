@@ -864,6 +864,7 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
         "report_targets": [],
         "report_physical_targets": clickhouse_targets + hbase_targets,
         "report_clickhouse_targets": clickhouse_targets,
+        "report_catalog_basic_info": [],
         "report_schedules": [],
         "report_field_mappings": [],
         "report_business_rules": [],
@@ -1058,6 +1059,31 @@ def build_structured_facts(sheet_summaries: list[SheetSummary], paragraphs: list
                     facts["data_utilizations"].append(
                         add_provenance({"name": name, "description": cell_value(row, "Description")}, summary)
                     )
+            continue
+
+        if (
+            has_headers(headers, ["数据项", "Title"])
+            and has_header(headers, "IT Owner&Email", "IT Owner & Email")
+            and has_header(headers, "Biz Owner&Email", "Biz Owner & Email")
+        ):
+            for row in rows:
+                data_item = cell_value(row, "数据项")
+                if not data_item:
+                    continue
+                facts["report_catalog_basic_info"].append(
+                    add_provenance(
+                        {
+                            "data_item": data_item,
+                            "title": cell_value(row, "Title"),
+                            "it_owner": cell_value(row, "IT Owner&Email", "IT Owner & Email"),
+                            "business_owner": cell_value(row, "Biz Owner&Email", "Biz Owner & Email"),
+                            "fe": cell_value(row, "FE&Email", "FE & Email"),
+                            "it_bp": cell_value(row, "IT BP & Email", "IT BP&Email"),
+                            "data_engineer": cell_value(row, "Data Engineer & Email", "Data Engineer&Email"),
+                        },
+                        summary,
+                    )
+                )
             continue
 
         if has_headers(headers, ["Data Utilization Name", "catalog"]):

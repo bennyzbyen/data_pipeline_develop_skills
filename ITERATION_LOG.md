@@ -44,6 +44,16 @@ This file is **not** a runtime dependency of any skill.
 | `deploy_skills.ps1` | Added `pipeline-excel-builder` to the default sync list |
 | `.gitignore` | Added `templates/` so production Excel exports remain local-only |
 
+Follow-up hardening:
+
+| File | Change |
+| --- | --- |
+| `skills/data-doc-to-dev-md/scripts/extract_docx_bundle.py` | Added `report_catalog_basic_info` extraction from Catalog Basic Info tables with `数据项 / Title / owner email` columns |
+| `skills/data-doc-to-dev-md/references/docx_rules.md` | Documented Catalog Basic Info table recognition for report development documents |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py` | Fills `data_utilization_description` from waterline Data Utilization Management and fills catalog registration fields from `report_catalog_basic_info` |
+| `skills/pipeline-excel-builder/scripts/validate_pipeline_excel.py` | Warns if owner/name columns contain email addresses or digits |
+| `skills/pipeline-excel-builder/SKILL.md` and `references/fill_rules.md` | Require owner/name columns to use person-style names without digits; email addresses stay in email columns |
+
 ### Verification
 
 - Generated QAS output:
@@ -56,16 +66,22 @@ This file is **not** a runtime dependency of any skill.
   - `Target Field`: 291 generated rows from QAS field mappings.
   - `Pipeline`: 5 generated rows.
   - Validator result: pass, 0 errors.
-  - Conservative blanks remain as warnings/questions: owner/email/catalog fields, `clickhouse_soldto_details_p` field dictionary, period/pending schedules, task-target links, MLP params, and QAS document conflicts.
+  - `data_utilization_description` is filled as `六真异常数据`.
+  - Catalog registration fields are filled for 11 QAS targets from Catalog Basic Info.
+  - Owner/name columns use person-style names without digits, for example `tracy.zhang1@effem.com` -> `Tracy Zhang`.
+  - Conservative blanks remain as warnings/questions: `clickhouse_soldto_details_p` field dictionary, period/pending schedules, task-target links, MLP params, and QAS document conflicts.
 - Schema regression:
   - `prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`: pass, 0 errors.
   - `prod_[Execute_King_2025]_Pipeline_Export_File_20260708114300.xlsx`: pass, 0 errors.
   - `prod_[fos_vehicle_verification]_Pipeline_Export_File_20260708114318.xlsx`: pass, 0 errors.
   - `uat_[QAS_Abnormal_Data]_Pipeline_Export_File_20260708105821.xlsx`: pass, 0 errors.
+- Skill validation:
+  - `pipeline-excel-builder`: pass with `$env:PYTHONUTF8 = '1'; python quick_validate.py`.
+  - `data-doc-to-dev-md`: pass with `$env:PYTHONUTF8 = '1'; python quick_validate.py`.
 
 ### Remaining Risks
 
-- The generated workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, owner/email/catalog fields, and non-daily schedules.
+- The generated workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, `clickhouse_soldto_details_p` fields, and non-daily schedules.
 - Production Excel samples are intentionally not committed to Git.
 
 ## 2026-07-03 - bySKU Report Pipeline Handoff Hardening

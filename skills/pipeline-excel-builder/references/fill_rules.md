@@ -12,14 +12,19 @@
 
 - Use unique `report_targets[*].data_utilization`.
 - Ignore noisy `data_utilizations` rows extracted from unrelated field dictionaries unless they also appear in `report_targets`.
-- If no description is available, leave `data_utilization_description` blank.
+- Fill `data_utilization_description` from a matching `data_utilizations[*].description` row when available.
+- If no matching description is available, leave `data_utilization_description` blank and keep the row otherwise valid.
 
 ## Target & Catalog
 
 - Use `report_targets` as the target list.
 - Merge physical table evidence from `report_physical_targets` by exact physical table, target table suffix, or description.
 - Use the `target_name` already present in `report_targets`; do not rename it to the physical table.
-- Keep catalog owner/email/source fields blank unless explicitly present in the current project document or user input.
+- Fill catalog fields from `report_catalog_basic_info` when the current project document contains a Catalog Basic Info table.
+- Match catalog rows by physical table suffix, for example `abnormal_monitor.qas_feedback_detail` -> `qas_feedback_detail`.
+- For owner/name columns, prefer a person-style value. If the document only provides an email, derive a name from the email local part, remove digits, and format it as words, for example `tracy.zhang1@effem.com` -> `Tracy Zhang`.
+- Fill email columns with the extracted email address.
+- Keep `dataset_source` blank unless the document provides source/link text.
 - If paragraph text claims a target count that conflicts with extracted target rows, keep extracted rows and add a question.
 
 ## Target Field
