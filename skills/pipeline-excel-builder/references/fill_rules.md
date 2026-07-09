@@ -37,6 +37,7 @@
   - `field_label` from Chinese/business label when available; otherwise use the field key.
   - `field_description` from calculation logic when available.
   - `field_type` as the fixed workbook value `TEXT`, regardless of the source document field type.
+  - `field_length` as the fixed workbook text value `200`.
   - `field_sequence` as a text string from 0 in target-local order.
 - Do not invent missing fields for targets without a field dictionary; add a question instead.
 

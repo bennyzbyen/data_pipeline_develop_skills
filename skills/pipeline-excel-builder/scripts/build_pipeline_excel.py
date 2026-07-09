@@ -541,7 +541,7 @@ def build_field_rows(
                     "*field_label": field_label(field, key),
                     "field_description": field_description(field),
                     "*field_type": "TEXT",
-                    "field_length": "",
+                    "field_length": "200",
                     "field_sequence": str(sequence),
                 }
             )

@@ -58,6 +58,7 @@ Follow-up hardening:
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Store `Target Field.field_sequence` as text instead of numeric cells, matching production exports |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Remove blank data cells from workbook XML instead of writing empty inline strings, matching production exports for Pipeline timing columns |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Convert saved text cells from `inlineStr` to shared-string references (`xl/sharedStrings.xml`, `t="s"`) because the platform importer missed `Data Utilization` names stored as inline strings |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Fill every `Target Field.field_length` as fixed text value `200`, matching production exports |
 
 ### Verification
 
@@ -76,6 +77,7 @@ Follow-up hardening:
   - Owner/name columns use person-style names without digits, for example `tracy.zhang1@effem.com` -> `Tracy Zhang`.
   - Pipeline timing columns are intentionally blank: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
   - Target Field `*field_type` is intentionally fixed to `TEXT` for every generated field row.
+  - Target Field `field_length` is intentionally fixed to text value `200` for every generated field row.
   - Target Field `field_sequence` is stored as text strings such as `0`, `1`, `2`, not numeric cells.
   - Blank optional cells are absent/null in workbook XML, not empty inline string cells.
   - Workbook text cells use shared strings (`xl/sharedStrings.xml`); XML check found `inlineStr` count `0`, and `Data Utilization!A3` is stored as `t="s"`.

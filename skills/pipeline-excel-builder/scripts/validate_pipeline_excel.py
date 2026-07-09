@@ -71,6 +71,7 @@ EXPECTED_HEADERS = {
 
 ALLOWED_STORAGE_TYPES = {"", "HBASE", "HDFS", "CLICKHOUSE", "SV_CLICKHOUSE", "MSSQL", "MYSQL"}
 REQUIRED_FIELD_TYPE = "TEXT"
+REQUIRED_FIELD_LENGTH = "200"
 SHARED_STRINGS_PATH = "xl/sharedStrings.xml"
 
 
@@ -204,10 +205,17 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         raw_field_type = row.get("*field_type")
         if clean(raw_field_type) != REQUIRED_FIELD_TYPE:
             errors.append(f"Target Field row {row['_row']} field_type must be TEXT, got: {raw_field_type}")
+        raw_field_length = row.get("field_length")
+        if clean(raw_field_length) != REQUIRED_FIELD_LENGTH:
+            errors.append(f"Target Field row {row['_row']} field_length must be 200, got: {raw_field_length}")
 
     field_ws = wb[FIELD_SHEET]
+    length_col = EXPECTED_HEADERS[FIELD_SHEET].index("field_length") + 1
     sequence_col = EXPECTED_HEADERS[FIELD_SHEET].index("field_sequence") + 1
     for row_idx in range(3, field_ws.max_row + 1):
+        length_cell = field_ws.cell(row_idx, length_col)
+        if length_cell.value not in (None, "") and length_cell.data_type != "s":
+            errors.append(f"Target Field row {row_idx} field_length must be stored as text, got cell type: {length_cell.data_type}")
         cell = field_ws.cell(row_idx, sequence_col)
         if cell.value in (None, ""):
             continue
