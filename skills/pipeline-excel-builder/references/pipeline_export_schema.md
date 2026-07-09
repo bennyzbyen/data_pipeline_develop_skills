@@ -2,6 +2,8 @@
 
 Pipeline Export workbooks use five fixed sheets. Data starts at row 3; rows 1 and 2 are template/header rows and must be preserved.
 
+The builder should fill the user-provided workbook in place by default. A separate output workbook is only for explicit copy/export requests.
+
 ## Sheets
 
 | Sheet | Purpose |

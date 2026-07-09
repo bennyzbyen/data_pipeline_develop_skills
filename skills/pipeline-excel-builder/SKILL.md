@@ -23,7 +23,7 @@ Use this skill when the user needs a DataHub/DataEngine Pipeline Export Excel wo
 
 ## Outputs
 
-- Filled Pipeline Export Excel workbook.
+- Filled source Pipeline Export Excel workbook. By default, fill the user-provided workbook in place.
 - `questions.md` listing conflicts, missing values, and fields intentionally left blank.
 - `validation.json` from `scripts/validate_pipeline_excel.py`.
 - A short review summary: row counts, required-column status, warnings, and remaining manual checks.
@@ -45,16 +45,15 @@ Use this skill when the user needs a DataHub/DataEngine Pipeline Export Excel wo
 python skills\pipeline-excel-builder\scripts\build_pipeline_excel.py `
   --template-xlsx "<empty export.xlsx>" `
   --structured-facts "<structured_facts.json>" `
-  --out-xlsx "<output.xlsx>" `
   --questions-out "<questions.md>" `
   --project-name "<PROJECT_NAME>"
 ```
 
-6. Validate the generated workbook:
+6. Validate the filled workbook:
 
 ```powershell
 python skills\pipeline-excel-builder\scripts\validate_pipeline_excel.py `
-  --xlsx "<output.xlsx>" `
+  --xlsx "<filled export.xlsx>" `
   --json-out "<validation.json>"
 ```
 
@@ -63,6 +62,7 @@ python skills\pipeline-excel-builder\scripts\validate_pipeline_excel.py `
 ## Hard Constraints
 
 - Use the user's empty template as the workbook base. Do not rebuild the workbook from scratch unless the user explicitly asks.
+- Fill the user-provided Pipeline Export workbook in place by default. Only write a separate workbook when the user explicitly asks or `--out-xlsx` is provided.
 - Only write data rows from row 3 onward in the four data sheets. Preserve `Readme`, headers, merged cells, column widths, row heights, and styles.
 - Do not guess owner, email, catalog registration values, MLP params, task-target links, credentials, URLs, or platform-specific IDs.
 - When catalog owner/name values are derived from emails, fill owner/name columns with person-style names without digits; keep full addresses only in email columns.
@@ -76,10 +76,10 @@ python skills\pipeline-excel-builder\scripts\validate_pipeline_excel.py `
 
 ## Handoff Standard
 
-Before handing off a generated workbook, report:
+Before handing off a filled workbook, report:
 
 - Workbook path.
 - Data row counts for `Data Utilization`, `Target & Catalog`, `Target Field`, and `Pipeline`.
 - Validation result and warning count.
 - Any fields intentionally left blank.
-- Whether the workbook has only been locally generated or has also been manually reviewed/imported.
+- Whether the workbook has only been locally filled or has also been manually reviewed/imported.

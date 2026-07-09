@@ -59,6 +59,7 @@ Follow-up hardening:
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Remove blank data cells from workbook XML instead of writing empty inline strings, matching production exports for Pipeline timing columns |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Convert saved text cells from `inlineStr` to shared-string references (`xl/sharedStrings.xml`, `t="s"`) because the platform importer missed `Data Utilization` names stored as inline strings |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Fill every `Target Field.field_length` as fixed text value `200`, matching production exports |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `SKILL.md`, and references | Changed default write mode to fill the user-provided Pipeline Export workbook in place; `--out-xlsx` is now optional and only used for explicit copy output |
 
 ### Verification
 
@@ -82,6 +83,7 @@ Follow-up hardening:
   - Blank optional cells are absent/null in workbook XML, not empty inline string cells.
   - Workbook text cells use shared strings (`xl/sharedStrings.xml`); XML check found `inlineStr` count `0`, and `Data Utilization!A3` is stored as `t="s"`.
   - Regression validation passed on three production Pipeline exports with the new shared-string validator rule.
+  - In-place fill mode updates `templates/uat_[QAS_Abnormal_Data]_Pipeline_Export_File_20260708105821.xlsx` directly when `--out-xlsx` is omitted.
   - Conservative blanks remain as warnings/questions: `clickhouse_soldto_details_p` field dictionary, task-target links, MLP params, and QAS document conflicts.
 - Schema regression:
   - `prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`: pass, 0 errors.
@@ -94,7 +96,7 @@ Follow-up hardening:
 
 ### Remaining Risks
 
-- The generated workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, `clickhouse_soldto_details_p` fields, and any schedule setup that must be handled outside the generated timing columns.
+- The filled workbook is a pre-import review artifact; DataHub import success still requires manual confirmation of blank task-target links, MLP params, `clickhouse_soldto_details_p` fields, and any schedule setup that must be handled outside the filled timing columns.
 - Production Excel samples are intentionally not committed to Git.
 
 ## 2026-07-03 - bySKU Report Pipeline Handoff Hardening

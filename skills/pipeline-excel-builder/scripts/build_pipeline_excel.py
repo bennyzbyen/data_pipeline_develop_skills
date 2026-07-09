@@ -643,6 +643,7 @@ def build_workbook(args: argparse.Namespace) -> dict[str, int]:
     facts = read_json(args.structured_facts)
     wb = load_workbook(args.template_xlsx)
     ensure_template(wb)
+    workbook_path = args.out_xlsx or args.template_xlsx
 
     questions: list[str] = []
     du_rows = build_data_utilization_rows(facts, args.data_utilization, args.project_name)
@@ -658,9 +659,9 @@ def build_workbook(args: argparse.Namespace) -> dict[str, int]:
     write_rows(wb[FIELD_SHEET], EXPECTED_HEADERS[FIELD_SHEET], field_rows)
     write_rows(wb[PIPELINE_SHEET], EXPECTED_HEADERS[PIPELINE_SHEET], pipeline_rows)
 
-    args.out_xlsx.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(args.out_xlsx)
-    rewrite_inline_strings_as_shared_strings(args.out_xlsx)
+    workbook_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(workbook_path)
+    rewrite_inline_strings_as_shared_strings(workbook_path)
 
     counts = {
         DATA_UTILIZATION_SHEET: len(du_rows),
@@ -676,7 +677,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a Pipeline Export Excel workbook from structured facts.")
     parser.add_argument("--template-xlsx", required=True, type=Path)
     parser.add_argument("--structured-facts", required=True, type=Path)
-    parser.add_argument("--out-xlsx", required=True, type=Path)
+    parser.add_argument("--out-xlsx", type=Path, help="Optional copy path. If omitted, the template workbook is filled in place.")
     parser.add_argument("--questions-out", required=True, type=Path)
     parser.add_argument("--project-name", required=True)
     parser.add_argument("--data-utilization", default="")
@@ -686,7 +687,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     counts = build_workbook(args)
-    print(json.dumps({"out_xlsx": str(args.out_xlsx), "questions": str(args.questions_out), "row_counts": counts}, ensure_ascii=False))
+    workbook_path = args.out_xlsx or args.template_xlsx
+    print(json.dumps({"workbook": str(workbook_path), "questions": str(args.questions_out), "row_counts": counts}, ensure_ascii=False))
     return 0
 
 

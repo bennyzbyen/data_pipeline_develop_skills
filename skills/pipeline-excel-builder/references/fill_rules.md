@@ -8,6 +8,12 @@
 4. User-confirmed overrides.
 5. Production Excel examples, only for schema/style reference unless the user explicitly authorizes copying business values.
 
+## Workbook Write Mode
+
+- Default to filling the user-provided Pipeline Export workbook in place.
+- Write a separate workbook only when the user explicitly asks for a copy or the CLI receives `--out-xlsx`.
+- Preserve the original workbook structure; only rewrite data rows from row 3 onward in the four data sheets.
+
 ## Data Utilization
 
 - Use unique `report_targets[*].data_utilization`.
