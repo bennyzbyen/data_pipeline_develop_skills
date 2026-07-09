@@ -172,6 +172,15 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         if clean(raw_field_type) != REQUIRED_FIELD_TYPE:
             errors.append(f"Target Field row {row['_row']} field_type must be TEXT, got: {raw_field_type}")
 
+    field_ws = wb[FIELD_SHEET]
+    sequence_col = EXPECTED_HEADERS[FIELD_SHEET].index("field_sequence") + 1
+    for row_idx in range(3, field_ws.max_row + 1):
+        cell = field_ws.cell(row_idx, sequence_col)
+        if cell.value in (None, ""):
+            continue
+        if cell.data_type != "s":
+            errors.append(f"Target Field row {row_idx} field_sequence must be stored as text, got cell type: {cell.data_type}")
+
     target_field_counts: dict[str, int] = {}
     for row in fields:
         target = row.get("*target_name", "")

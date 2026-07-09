@@ -407,7 +407,7 @@ def build_field_rows(
                     "field_description": field_description(field),
                     "*field_type": "TEXT",
                     "field_length": "",
-                    "field_sequence": sequence,
+                    "field_sequence": str(sequence),
                 }
             )
             sequence += 1
