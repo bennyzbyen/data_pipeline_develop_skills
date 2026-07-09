@@ -64,11 +64,17 @@ python skills\pipeline-excel-builder\scripts\validate_pipeline_excel.py `
 - Use the user's empty template as the workbook base. Do not rebuild the workbook from scratch unless the user explicitly asks.
 - Fill the user-provided Pipeline Export workbook in place by default. Only write a separate workbook when the user explicitly asks or `--out-xlsx` is provided.
 - Only write data rows from row 3 onward in the four data sheets. Preserve `Readme`, headers, merged cells, column widths, row heights, and styles.
+- When refilling a workbook that already has data rows, preserve existing row order by sheet key and append only new inferred rows.
 - Do not guess owner, email, catalog registration values, MLP params, task-target links, credentials, URLs, or platform-specific IDs.
 - When catalog owner/name values are derived from emails, fill owner/name columns with person-style names without digits; keep full addresses only in email columns.
+- Fill catalog registration only for project-owned/report output tables; leave shared/reference table catalog columns blank unless explicitly confirmed.
+- Fill `Target & Catalog.dataset_name` and `dataset_title` with the catalog data item name, and `dataset_description` with the catalog title/description.
+- Fill every `Target Field` row's `*field_label` with the same value as `*field_name`; put Chinese/business text in `field_description`.
 - Fill every `Target Field` row's `*field_type` as the fixed workbook value `TEXT`, regardless of the source document field type.
 - Fill every `Target Field` row's `field_length` as the fixed text value `200`.
 - Leave all Pipeline timing columns blank: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
+- Leave `pipeline_status_notification` blank for generated rows unless explicitly confirmed.
+- Keep only Pipeline rows with high-confidence `task1_link_target_names`; infer links from exact target/table names, project-prefix-stripped aliases, and clear period groups.
 - Save text cells in shared-string form (`xl/sharedStrings.xml`, `t="s"`), matching production exports; avoid `inlineStr` cells.
 - Prefer technical DataEngine/waterline document facts over PRD facts for target names, storage, table names, field names, and schedules.
 - If the document contains conflicting target counts or duplicate field dictionaries, generate the higher-confidence rows and record the conflict in `questions.md`.

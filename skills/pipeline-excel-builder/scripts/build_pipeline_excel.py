@@ -83,6 +83,13 @@ EXPECTED_HEADERS = {
     ],
 }
 
+ROW_KEY_HEADERS = {
+    DATA_UTILIZATION_SHEET: ["*data_utilization_name"],
+    TARGET_SHEET: ["*target_name"],
+    FIELD_SHEET: ["*target_name", "*field_name"],
+    PIPELINE_SHEET: ["*pipeline_name"],
+}
+
 
 def clean(value: Any) -> str:
     if value is None:
@@ -148,22 +155,61 @@ def prepare_data_area(ws, rows_needed: int, max_col: int) -> None:
             ws.cell(row, col).value = None
 
 
-def remove_empty_data_cells(ws, max_col: int) -> None:
+def remove_empty_string_cells(ws, max_col: int, existing_cells: set[tuple[int, int]]) -> None:
     for row in range(3, ws.max_row + 1):
         for col in range(1, max_col + 1):
             cell = ws.cell(row, col)
-            if cell.value is None:
+            if cell.value == "" or (cell.value is None and (cell.data_type == "inlineStr" or (row, col) not in existing_cells)):
                 ws._cells.pop((row, col), None)
 
 
-def write_rows(ws, headers: list[str], rows: list[dict[str, Any]]) -> None:
+def row_key(row: dict[str, Any], key_headers: list[str]) -> tuple[str, ...]:
+    return tuple(clean(row.get(header)) for header in key_headers)
+
+
+def existing_row_order(ws, headers: list[str], key_headers: list[str]) -> list[tuple[str, ...]]:
+    header_set = set(headers)
+    if any(header not in header_set for header in key_headers):
+        return []
+    order: list[tuple[str, ...]] = []
+    seen: set[tuple[str, ...]] = set()
+    for row_idx in range(3, ws.max_row + 1):
+        row = {header: clean(ws.cell(row_idx, col).value) for col, header in enumerate(headers, start=1)}
+        key = row_key(row, key_headers)
+        if not any(key) or key in seen:
+            continue
+        seen.add(key)
+        order.append(key)
+    return order
+
+
+def reorder_rows(rows: list[dict[str, Any]], existing_order: list[tuple[str, ...]], key_headers: list[str]) -> list[dict[str, Any]]:
+    if not existing_order:
+        return rows
+    row_by_key = {row_key(row, key_headers): row for row in rows}
+    ordered: list[dict[str, Any]] = []
+    used: set[tuple[str, ...]] = set()
+    for key in existing_order:
+        row = row_by_key.get(key)
+        if row is None:
+            continue
+        ordered.append(row)
+        used.add(key)
+    ordered.extend(row for row in rows if row_key(row, key_headers) not in used)
+    return ordered
+
+
+def write_rows(ws, headers: list[str], rows: list[dict[str, Any]], key_headers: list[str] | None = None) -> None:
+    key_headers = key_headers or []
+    existing_cells = set(ws._cells)
+    rows = reorder_rows(rows, existing_row_order(ws, headers, key_headers), key_headers) if key_headers else rows
     prepare_data_area(ws, len(rows), len(headers))
     for offset, row in enumerate(rows, start=3):
         for col, header in enumerate(headers, start=1):
             value = row.get(header)
             if value not in (None, ""):
                 ws.cell(offset, col).value = value
-    remove_empty_data_cells(ws, len(headers))
+    remove_empty_string_cells(ws, len(headers), existing_cells)
 
 
 def inline_string_text(body: str) -> str:
@@ -325,6 +371,16 @@ def normalize_table_key(value: str) -> str:
     return value
 
 
+def project_prefix(data_utilization: str) -> str:
+    value = clean(data_utilization).lower()
+    return value.split("_", 1)[0] if "_" in value else value
+
+
+def is_project_owned_table(table_name: str, data_utilization: str) -> bool:
+    prefix = project_prefix(data_utilization)
+    return bool(prefix and clean(table_name).lower().startswith(prefix + "_"))
+
+
 def extract_email(value: str) -> str:
     match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", clean(value))
     return match.group(0) if match else ""
@@ -427,6 +483,8 @@ def build_target_rows(
         db, table_name = split_physical_table(table, database, mapped_storage)
         description = clean(item.get("description") or physical.get("description"))
         catalog = catalog_by_table.get(normalize_table_key(table_name)) or catalog_by_table.get(normalize_table_key(table))
+        if catalog and not is_project_owned_table(table_name, data_utilization or clean(item.get("data_utilization"))):
+            catalog = {}
         if not catalog:
             missing_catalog.append(table_name or target_name)
         business_owner_value = clean(catalog.get("business_owner")) if catalog else ""
@@ -446,7 +504,7 @@ def build_target_rows(
                 "table_name": table_name,
                 "table_description": clean(physical.get("description") or item.get("physical_description") or description),
                 "dataset_name": catalog_data_item,
-                "dataset_title": catalog_title,
+                "dataset_title": catalog_data_item,
                 "dataset_description": catalog_title,
                 "dataset_business_owner": contact_name(business_owner_value),
                 "dataset_business_owner_email": extract_email(business_owner_value),
@@ -507,11 +565,11 @@ def field_key(field: dict[str, Any]) -> str:
 
 
 def field_label(field: dict[str, Any], fallback: str) -> str:
-    return clean(field.get("field_name") or field.get("field_label") or field.get("description") or fallback)
+    return fallback
 
 
 def field_description(field: dict[str, Any]) -> str:
-    return clean(field.get("field_description") or field.get("calculation_logic") or field.get("remark"))
+    return clean(field.get("field_name") or field.get("field_label") or field.get("description") or field.get("field_description") or field.get("remark"))
 
 
 def build_field_rows(
@@ -549,9 +607,70 @@ def build_field_rows(
     return rows
 
 
+def target_table_key(row: dict[str, Any]) -> str:
+    return normalize_table_key(clean(row.get("table_name") or row.get("*target_name")))
+
+
+def pipeline_search_text(item: dict[str, Any]) -> str:
+    return " ".join(
+        clean(item.get(key)).lower()
+        for key in ["pipeline_name", "task_name", "description"]
+        if clean(item.get(key))
+    )
+
+
+def infer_pipeline_target_links(
+    item: dict[str, Any],
+    target_rows: list[dict[str, Any]],
+    data_utilization: str,
+) -> list[str]:
+    text = pipeline_search_text(item)
+    pipeline_name = clean(item.get("pipeline_name")).lower()
+    task_name = clean(item.get("task_name")).lower()
+    candidate_text = " ".join([pipeline_name, task_name])
+    prefix = project_prefix(data_utilization or clean(item.get("data_utilization")))
+
+    links: list[str] = []
+    if "period" in candidate_text:
+        for row in target_rows:
+            table_key = target_table_key(row)
+            if table_key.endswith("_period") and is_project_owned_table(table_key, data_utilization):
+                links.append(clean(row.get("*target_name")))
+        if links:
+            return links
+
+    for row in target_rows:
+        table_key = target_table_key(row)
+        target_name = clean(row.get("*target_name"))
+        is_project_owned = bool(prefix and table_key.startswith(prefix + "_"))
+        aliases = [table_key]
+        if is_project_owned:
+            aliases.append(table_key[len(prefix) + 1 :])
+        if not table_key or not any(alias and alias in candidate_text for alias in aliases):
+            continue
+        if pipeline_name.startswith("incr_sync_") and is_project_owned:
+            continue
+        links.append(target_name)
+    if links:
+        return links
+
+    for row in target_rows:
+        table_key = target_table_key(row)
+        is_project_owned = bool(prefix and table_key.startswith(prefix + "_"))
+        if pipeline_name.startswith("incr_sync_") and is_project_owned:
+            continue
+        aliases = [table_key]
+        if is_project_owned:
+            aliases.append(table_key[len(prefix) + 1 :])
+        if table_key and any(alias and alias in text for alias in aliases):
+            links.append(clean(row.get("*target_name")))
+    return links
+
+
 def build_pipeline_rows(
     facts: dict[str, Any],
     data_utilization: str,
+    target_rows: list[dict[str, Any]],
     questions: list[str],
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -562,6 +681,10 @@ def build_pipeline_rows(
             continue
         seen.add(pipeline_name)
         task_name = clean(item.get("task_name"))
+        link_targets = infer_pipeline_target_links(item, target_rows, data_utilization)
+        if not link_targets:
+            questions.append(f"Pipeline: `{pipeline_name}` skipped because no high-confidence task-target link was inferred.")
+            continue
         rows.append(
             {
                 "*data_utilization_name": data_utilization or clean(item.get("data_utilization")),
@@ -572,15 +695,15 @@ def build_pipeline_rows(
                 "pipeline_trigger": "",
                 "pipeline_trigger_start": "",
                 "pipeline_trigger_end": "",
-                "pipeline_status_notification": "FINISHED,FAILED",
+                "pipeline_status_notification": "",
                 "pipeline_notification_emails": "",
                 "task1_name": task_name,
                 "task1_description": clean(item.get("description")),
-                "task1_link_target_names": "",
+                "task1_link_target_names": ",".join(link_targets),
                 "task1_mlp_params": "",
             }
         )
-        questions.append(f"Pipeline: `{pipeline_name}` task-target links and MLP params require manual confirmation.")
+        questions.append(f"Pipeline: `{pipeline_name}` MLP params require manual confirmation.")
     return rows
 
 
@@ -651,13 +774,13 @@ def build_workbook(args: argparse.Namespace) -> dict[str, int]:
     target_rows = build_target_rows(facts, selected_du, questions)
     target_names = [row["*target_name"] for row in target_rows]
     field_rows = build_field_rows(facts, target_names, questions)
-    pipeline_rows = build_pipeline_rows(facts, selected_du, questions)
+    pipeline_rows = build_pipeline_rows(facts, selected_du, target_rows, questions)
     add_conflict_questions(facts, len(target_rows), questions)
 
-    write_rows(wb[DATA_UTILIZATION_SHEET], EXPECTED_HEADERS[DATA_UTILIZATION_SHEET], du_rows)
-    write_rows(wb[TARGET_SHEET], EXPECTED_HEADERS[TARGET_SHEET], target_rows)
-    write_rows(wb[FIELD_SHEET], EXPECTED_HEADERS[FIELD_SHEET], field_rows)
-    write_rows(wb[PIPELINE_SHEET], EXPECTED_HEADERS[PIPELINE_SHEET], pipeline_rows)
+    write_rows(wb[DATA_UTILIZATION_SHEET], EXPECTED_HEADERS[DATA_UTILIZATION_SHEET], du_rows, ROW_KEY_HEADERS[DATA_UTILIZATION_SHEET])
+    write_rows(wb[TARGET_SHEET], EXPECTED_HEADERS[TARGET_SHEET], target_rows, ROW_KEY_HEADERS[TARGET_SHEET])
+    write_rows(wb[FIELD_SHEET], EXPECTED_HEADERS[FIELD_SHEET], field_rows, ROW_KEY_HEADERS[FIELD_SHEET])
+    write_rows(wb[PIPELINE_SHEET], EXPECTED_HEADERS[PIPELINE_SHEET], pipeline_rows, ROW_KEY_HEADERS[PIPELINE_SHEET])
 
     workbook_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(workbook_path)

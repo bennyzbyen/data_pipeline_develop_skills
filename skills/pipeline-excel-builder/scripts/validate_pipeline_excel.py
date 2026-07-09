@@ -81,6 +81,16 @@ def clean(value: Any) -> str:
     return str(value).strip()
 
 
+def project_prefix(value: str) -> str:
+    value = clean(value).lower()
+    return value.split("_", 1)[0] if "_" in value else value
+
+
+def is_project_owned_table(table_name: str, data_utilization_name: str) -> bool:
+    prefix = project_prefix(data_utilization_name)
+    return bool(prefix and clean(table_name).lower().startswith(prefix + "_"))
+
+
 def headers(ws, count: int) -> list[str]:
     return [clean(ws.cell(2, col).value) for col in range(1, count + 1)]
 
@@ -174,6 +184,7 @@ def validate_workbook(path: Path) -> dict[str, Any]:
 
     du_names = {row["*data_utilization_name"] for row in dus if row.get("*data_utilization_name")}
     target_names = {row["*target_name"] for row in targets if row.get("*target_name")}
+    default_du_name = sorted(du_names)[0] if du_names else ""
 
     add_duplicate_errors([row.get("*data_utilization_name", "") for row in dus], "data_utilization_name", errors)
     add_duplicate_errors([row.get("*target_name", "") for row in targets], "target_name", errors)
@@ -185,7 +196,7 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         storage = row.get("data_storage_type", "")
         if storage not in ALLOWED_STORAGE_TYPES:
             errors.append(f"Target & Catalog row {row['_row']} has unsupported data_storage_type: {storage}")
-        if not row.get("dataset_business_owner_email"):
+        if is_project_owned_table(row.get("table_name", ""), row.get("*data_utilization_name", "") or default_du_name) and not row.get("dataset_business_owner_email"):
             warnings.append(f"Target & Catalog row {row['_row']} dataset owner/email fields are blank.")
         for name_column in [
             "dataset_business_owner",
@@ -202,6 +213,11 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         target = row.get("*target_name")
         if target not in target_names:
             errors.append(f"Target Field row {row['_row']} references unknown target_name: {target}")
+        if row.get("*field_label") != row.get("*field_name"):
+            errors.append(
+                f"Target Field row {row['_row']} field_label must equal field_name, "
+                f"got field_name={row.get('*field_name')} field_label={row.get('*field_label')}"
+            )
         raw_field_type = row.get("*field_type")
         if clean(raw_field_type) != REQUIRED_FIELD_TYPE:
             errors.append(f"Target Field row {row['_row']} field_type must be TEXT, got: {raw_field_type}")
@@ -227,7 +243,8 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         target = row.get("*target_name", "")
         target_field_counts[target] = target_field_counts.get(target, 0) + 1
     for target in sorted(target_names):
-        if target_field_counts.get(target, 0) == 0:
+        target_row = next((row for row in targets if row.get("*target_name") == target), {})
+        if target_field_counts.get(target, 0) == 0 and is_project_owned_table(target_row.get("table_name", ""), target_row.get("*data_utilization_name", "") or default_du_name):
             warnings.append(f"Target has no field rows: {target}")
 
     for row in pipelines:

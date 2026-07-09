@@ -4,6 +4,8 @@ Pipeline Export workbooks use five fixed sheets. Data starts at row 3; rows 1 an
 
 The builder should fill the user-provided workbook in place by default. A separate output workbook is only for explicit copy/export requests.
 
+When refilling a workbook that already contains data rows, preserve existing row order by sheet key. Blank cells should remain null/style cells when they already exist in the workbook, but the builder should not create new empty optional cells.
+
 ## Sheets
 
 | Sheet | Purpose |
@@ -94,6 +96,8 @@ The builder should fill the user-provided workbook in place by default. A separa
 ## Field Type
 
 `Target Field.*field_type` is a fixed workbook value. Always write `TEXT` for every field row, regardless of the source document field type.
+
+`Target Field.*field_label` is a fixed workbook convention. Always write the same value as `*field_name`; put Chinese/business text in `field_description`.
 
 `Target Field.field_length` is a fixed workbook value. Always write `200` as a text string for every field row.
 
