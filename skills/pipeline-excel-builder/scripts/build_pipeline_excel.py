@@ -136,11 +136,22 @@ def prepare_data_area(ws, rows_needed: int, max_col: int) -> None:
             ws.cell(row, col).value = None
 
 
+def remove_empty_data_cells(ws, max_col: int) -> None:
+    for row in range(3, ws.max_row + 1):
+        for col in range(1, max_col + 1):
+            cell = ws.cell(row, col)
+            if cell.value is None:
+                ws._cells.pop((row, col), None)
+
+
 def write_rows(ws, headers: list[str], rows: list[dict[str, Any]]) -> None:
     prepare_data_area(ws, len(rows), len(headers))
     for offset, row in enumerate(rows, start=3):
         for col, header in enumerate(headers, start=1):
-            ws.cell(offset, col).value = row.get(header, "")
+            value = row.get(header)
+            if value not in (None, ""):
+                ws.cell(offset, col).value = value
+    remove_empty_data_cells(ws, len(headers))
 
 
 def ordered_unique(values: list[str]) -> list[str]:

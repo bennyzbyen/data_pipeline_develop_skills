@@ -109,6 +109,14 @@ def add_duplicate_errors(values: list[str], label: str, errors: list[str]) -> No
         errors.append(f"Duplicate {label}: {value}")
 
 
+def add_empty_inline_string_errors(ws, max_col: int, errors: list[str]) -> None:
+    for (row_idx, col_idx), cell in ws._cells.items():
+        if row_idx < 3 or col_idx > max_col:
+            continue
+        if cell.value is None and cell.data_type == "inlineStr":
+            errors.append(f"{ws.title} {cell.coordinate} is an empty inline string cell; leave blank cells absent/null.")
+
+
 def validate_workbook(path: Path) -> dict[str, Any]:
     wb = load_workbook(path, data_only=False)
     errors: list[str] = []
@@ -128,6 +136,7 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         rows = row_dicts(ws, expected)
         data[sheet] = rows
         row_counts[sheet] = len(rows)
+        add_empty_inline_string_errors(ws, len(expected), errors)
         for row in rows:
             for header in required_headers(expected):
                 if not row.get(header):

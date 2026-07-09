@@ -94,3 +94,5 @@ Pipeline Export workbooks use five fixed sheets. Data starts at row 3; rows 1 an
 `Target Field.*field_type` is a fixed workbook value. Always write `TEXT` for every field row, regardless of the source document field type.
 
 `Target Field.field_sequence` should be stored as a text string such as `0`, `1`, `2`, matching production exports and avoiding numeric/date parser branches during import.
+
+Blank optional cells should be absent/null cells in workbook XML, not empty inline string cells like `<c t="inlineStr"></c>`. This is especially important for Pipeline timing columns.

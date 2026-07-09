@@ -45,6 +45,7 @@
 - Use `report_schedules`.
 - Set `enable = 1`, `is_octopus = 0`.
 - Leave all timing columns blank for every pipeline row: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
+- Store blank timing cells as absent/null cells, not empty string cells.
 - Leave `task1_link_target_names` and `task1_mlp_params` blank when not explicitly confirmed.
 - Use `pipeline_status_notification = FINISHED,FAILED` as the conservative default only when the document does not provide a value.
 
