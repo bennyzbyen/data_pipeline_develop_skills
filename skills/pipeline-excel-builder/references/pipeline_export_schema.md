@@ -89,14 +89,6 @@ Pipeline Export workbooks use five fixed sheets. Data starts at row 3; rows 1 an
 | MSSQL | `MSSQL` |
 | MySQL | `MYSQL` |
 
-## Field Type Mapping
+## Field Type
 
-| Evidence | Workbook value |
-| --- | --- |
-| `STRING`, `VARCHAR`, `TEXT`, `CHAR` | `TEXT` |
-| `INT`, `INTEGER` | `INT` |
-| `LONG`, `BIGINT` | `LONG` |
-| `DECIMAL`, `DOUBLE`, `FLOAT`, `NUMBER` | `DECIMAL` |
-| `DATE`, `DATA` | `DATE` |
-| `DATETIME`, `TIMESTAMP`, `DATATIME` | `TIMESTAMP` |
-| `BOOLEAN`, `BOOL` | `BOOLEAN` |
+`Target Field.*field_type` is a fixed workbook value. Always write `TEXT` for every field row, regardless of the source document field type.

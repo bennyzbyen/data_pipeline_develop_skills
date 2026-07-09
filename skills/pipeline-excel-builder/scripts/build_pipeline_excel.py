@@ -169,26 +169,6 @@ def storage_type(*values: str) -> str:
     return clean(values[0]) if values else ""
 
 
-def field_type(value: str) -> str:
-    key = clean(value).upper()
-    key = key.replace("DATATIME", "DATETIME")
-    if key.startswith("VARCHAR") or key.startswith("CHAR") or key in {"STRING", "TEXT"}:
-        return "TEXT"
-    if key in {"INT", "INTEGER"}:
-        return "INT"
-    if key in {"LONG", "BIGINT"}:
-        return "LONG"
-    if key.startswith("DECIMAL") or key in {"DOUBLE", "FLOAT", "NUMBER"}:
-        return "DECIMAL"
-    if key in {"DATE", "DATA"}:
-        return "DATE"
-    if key in {"DATETIME", "TIMESTAMP"}:
-        return "TIMESTAMP"
-    if key in {"BOOLEAN", "BOOL"}:
-        return "BOOLEAN"
-    return clean(value)
-
-
 def split_physical_table(table: str, database: str, storage: str) -> tuple[str, str]:
     table = clean(table)
     database = clean(database)
@@ -419,16 +399,13 @@ def build_field_rows(
             if not key or key in seen_fields:
                 continue
             seen_fields.add(key)
-            mapped_type = field_type(clean(field.get("field_type") or field.get("type") or field.get("Type")))
-            if not mapped_type:
-                questions.append(f"Target Field: `{target}.{key}` has no confirmed field type.")
             rows.append(
                 {
                     "*target_name": target,
                     "*field_name": key,
                     "*field_label": field_label(field, key),
                     "field_description": field_description(field),
-                    "*field_type": mapped_type,
+                    "*field_type": "TEXT",
                     "field_length": "",
                     "field_sequence": sequence,
                 }

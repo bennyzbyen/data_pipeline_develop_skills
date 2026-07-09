@@ -54,6 +54,7 @@ Follow-up hardening:
 | `skills/pipeline-excel-builder/scripts/validate_pipeline_excel.py` | Warns if owner/name columns contain email addresses or digits |
 | `skills/pipeline-excel-builder/SKILL.md` and `references/fill_rules.md` | Require owner/name columns to use person-style names without digits; email addresses stay in email columns |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py` and `scripts/validate_pipeline_excel.py` | Leave Pipeline timing columns blank for every row and stop warning on blank `pipeline_trigger` |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Fill every `Target Field.*field_type` as fixed `TEXT` and reject non-`TEXT` values |
 
 ### Verification
 
@@ -71,6 +72,7 @@ Follow-up hardening:
   - Catalog registration fields are filled for 11 QAS targets from Catalog Basic Info.
   - Owner/name columns use person-style names without digits, for example `tracy.zhang1@effem.com` -> `Tracy Zhang`.
   - Pipeline timing columns are intentionally blank: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
+  - Target Field `*field_type` is intentionally fixed to `TEXT` for every generated field row.
   - Conservative blanks remain as warnings/questions: `clickhouse_soldto_details_p` field dictionary, task-target links, MLP params, and QAS document conflicts.
 - Schema regression:
   - `prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`: pass, 0 errors.

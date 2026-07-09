@@ -66,6 +66,7 @@ python skills\pipeline-excel-builder\scripts\validate_pipeline_excel.py `
 - Only write data rows from row 3 onward in the four data sheets. Preserve `Readme`, headers, merged cells, column widths, row heights, and styles.
 - Do not guess owner, email, catalog registration values, MLP params, task-target links, credentials, URLs, or platform-specific IDs.
 - When catalog owner/name values are derived from emails, fill owner/name columns with person-style names without digits; keep full addresses only in email columns.
+- Fill every `Target Field` row's `*field_type` as the fixed workbook value `TEXT`, regardless of the source document field type.
 - Leave all Pipeline timing columns blank: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
 - Prefer technical DataEngine/waterline document facts over PRD facts for target names, storage, table names, field names, and schedules.
 - If the document contains conflicting target counts or duplicate field dictionaries, generate the higher-confidence rows and record the conflict in `questions.md`.

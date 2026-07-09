@@ -69,32 +69,13 @@ EXPECTED_HEADERS = {
 }
 
 ALLOWED_STORAGE_TYPES = {"", "HBASE", "HDFS", "CLICKHOUSE", "SV_CLICKHOUSE", "MSSQL", "MYSQL"}
-ALLOWED_FIELD_TYPES = {"TEXT", "INT", "LONG", "BOOLEAN", "DECIMAL", "DATE", "TIME", "TIMESTAMP"}
+REQUIRED_FIELD_TYPE = "TEXT"
 
 
 def clean(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
-
-
-def normalize_field_type(value: str) -> str:
-    key = clean(value).upper().replace("DATATIME", "DATETIME")
-    if key.startswith("VARCHAR") or key.startswith("CHAR") or key in {"STRING", "TEXT"}:
-        return "TEXT"
-    if key in {"INT", "INTEGER"}:
-        return "INT"
-    if key in {"LONG", "BIGINT"}:
-        return "LONG"
-    if key.startswith("DECIMAL") or key in {"DOUBLE", "FLOAT", "NUMBER"}:
-        return "DECIMAL"
-    if key in {"DATE", "DATA"}:
-        return "DATE"
-    if key in {"DATETIME", "TIMESTAMP"}:
-        return "TIMESTAMP"
-    if key in {"BOOLEAN", "BOOL"}:
-        return "BOOLEAN"
-    return clean(value)
 
 
 def headers(ws, count: int) -> list[str]:
@@ -188,8 +169,8 @@ def validate_workbook(path: Path) -> dict[str, Any]:
         if target not in target_names:
             errors.append(f"Target Field row {row['_row']} references unknown target_name: {target}")
         raw_field_type = row.get("*field_type")
-        if normalize_field_type(raw_field_type) not in ALLOWED_FIELD_TYPES:
-            errors.append(f"Target Field row {row['_row']} has unsupported field_type: {raw_field_type}")
+        if clean(raw_field_type) != REQUIRED_FIELD_TYPE:
+            errors.append(f"Target Field row {row['_row']} field_type must be TEXT, got: {raw_field_type}")
 
     target_field_counts: dict[str, int] = {}
     for row in fields:
