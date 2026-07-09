@@ -57,6 +57,7 @@ Follow-up hardening:
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Fill every `Target Field.*field_type` as fixed `TEXT` and reject non-`TEXT` values |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Store `Target Field.field_sequence` as text instead of numeric cells, matching production exports |
 | `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Remove blank data cells from workbook XML instead of writing empty inline strings, matching production exports for Pipeline timing columns |
+| `skills/pipeline-excel-builder/scripts/build_pipeline_excel.py`, `scripts/validate_pipeline_excel.py`, and references | Convert saved text cells from `inlineStr` to shared-string references (`xl/sharedStrings.xml`, `t="s"`) because the platform importer missed `Data Utilization` names stored as inline strings |
 
 ### Verification
 
@@ -77,6 +78,8 @@ Follow-up hardening:
   - Target Field `*field_type` is intentionally fixed to `TEXT` for every generated field row.
   - Target Field `field_sequence` is stored as text strings such as `0`, `1`, `2`, not numeric cells.
   - Blank optional cells are absent/null in workbook XML, not empty inline string cells.
+  - Workbook text cells use shared strings (`xl/sharedStrings.xml`); XML check found `inlineStr` count `0`, and `Data Utilization!A3` is stored as `t="s"`.
+  - Regression validation passed on three production Pipeline exports with the new shared-string validator rule.
   - Conservative blanks remain as warnings/questions: `clickhouse_soldto_details_p` field dictionary, task-target links, MLP params, and QAS document conflicts.
 - Schema regression:
   - `prod_[cot_2026]_Pipeline_Export_File_20260708114242.xlsx`: pass, 0 errors.

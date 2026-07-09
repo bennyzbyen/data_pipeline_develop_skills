@@ -68,6 +68,7 @@ python skills\pipeline-excel-builder\scripts\validate_pipeline_excel.py `
 - When catalog owner/name values are derived from emails, fill owner/name columns with person-style names without digits; keep full addresses only in email columns.
 - Fill every `Target Field` row's `*field_type` as the fixed workbook value `TEXT`, regardless of the source document field type.
 - Leave all Pipeline timing columns blank: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
+- Save text cells in shared-string form (`xl/sharedStrings.xml`, `t="s"`), matching production exports; avoid `inlineStr` cells.
 - Prefer technical DataEngine/waterline document facts over PRD facts for target names, storage, table names, field names, and schedules.
 - If the document contains conflicting target counts or duplicate field dictionaries, generate the higher-confidence rows and record the conflict in `questions.md`.
 - Do not commit local template Excel files, production exports, generated outputs, or source documents to Git.

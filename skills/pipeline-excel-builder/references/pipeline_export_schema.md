@@ -96,3 +96,5 @@ Pipeline Export workbooks use five fixed sheets. Data starts at row 3; rows 1 an
 `Target Field.field_sequence` should be stored as a text string such as `0`, `1`, `2`, matching production exports and avoiding numeric/date parser branches during import.
 
 Blank optional cells should be absent/null cells in workbook XML, not empty inline string cells like `<c t="inlineStr"></c>`. This is especially important for Pipeline timing columns.
+
+All non-empty text cells should be stored through `xl/sharedStrings.xml` as shared-string references (`t="s"`). Production exports use shared strings, and the platform importer can miss values stored as inline strings (`t="inlineStr"`), including `Data Utilization` names.

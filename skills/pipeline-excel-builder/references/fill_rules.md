@@ -46,6 +46,7 @@
 - Set `enable = 1`, `is_octopus = 0`.
 - Leave all timing columns blank for every pipeline row: `pipeline_trigger`, `pipeline_trigger_start`, and `pipeline_trigger_end`.
 - Store blank timing cells as absent/null cells, not empty string cells.
+- Store non-empty workbook text cells as shared strings (`xl/sharedStrings.xml`, `t="s"`), matching platform exports.
 - Leave `task1_link_target_names` and `task1_mlp_params` blank when not explicitly confirmed.
 - Use `pipeline_status_notification = FINISHED,FAILED` as the conservative default only when the document does not provide a value.
 

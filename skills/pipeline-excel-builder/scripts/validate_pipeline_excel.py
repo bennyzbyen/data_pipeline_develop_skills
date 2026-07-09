@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,7 @@ EXPECTED_HEADERS = {
 
 ALLOWED_STORAGE_TYPES = {"", "HBASE", "HDFS", "CLICKHOUSE", "SV_CLICKHOUSE", "MSSQL", "MYSQL"}
 REQUIRED_FIELD_TYPE = "TEXT"
+SHARED_STRINGS_PATH = "xl/sharedStrings.xml"
 
 
 def clean(value: Any) -> str:
@@ -117,12 +119,34 @@ def add_empty_inline_string_errors(ws, max_col: int, errors: list[str]) -> None:
             errors.append(f"{ws.title} {cell.coordinate} is an empty inline string cell; leave blank cells absent/null.")
 
 
+def add_ooxml_storage_errors(path: Path, errors: list[str]) -> None:
+    with zipfile.ZipFile(path, "r") as zf:
+        names = set(zf.namelist())
+        if SHARED_STRINGS_PATH not in names:
+            errors.append("Workbook is missing xl/sharedStrings.xml; platform import expects shared-string text cells.")
+        inline_string_cells: list[str] = []
+        for name in sorted(names):
+            if not (name.startswith("xl/worksheets/") and name.endswith(".xml")):
+                continue
+            xml = zf.read(name).decode("utf-8")
+            count = xml.count('t="inlineStr"')
+            if count:
+                inline_string_cells.append(f"{name}: {count}")
+        if inline_string_cells:
+            errors.append(
+                "Workbook contains inlineStr cells; use sharedStrings like platform exports. "
+                + "; ".join(inline_string_cells)
+            )
+
+
 def validate_workbook(path: Path) -> dict[str, Any]:
     wb = load_workbook(path, data_only=False)
     errors: list[str] = []
     warnings: list[str] = []
     row_counts: dict[str, int] = {}
     data: dict[str, list[dict[str, str]]] = {}
+
+    add_ooxml_storage_errors(path, errors)
 
     for sheet, expected in EXPECTED_HEADERS.items():
         if sheet not in wb.sheetnames:

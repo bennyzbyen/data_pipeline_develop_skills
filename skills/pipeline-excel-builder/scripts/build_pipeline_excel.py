@@ -6,10 +6,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import zipfile
 from collections import OrderedDict, defaultdict
 from copy import copy
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
+from xml.sax.saxutils import escape as xml_escape
 
 from openpyxl import load_workbook
 
@@ -18,6 +21,15 @@ DATA_UTILIZATION_SHEET = "Data Utilization"
 TARGET_SHEET = "Target & Catalog"
 FIELD_SHEET = "Target Field"
 PIPELINE_SHEET = "Pipeline"
+CONTENT_TYPES_PATH = "[Content_Types].xml"
+WORKBOOK_RELS_PATH = "xl/_rels/workbook.xml.rels"
+SHARED_STRINGS_PATH = "xl/sharedStrings.xml"
+SHARED_STRINGS_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
+SHARED_STRINGS_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"
+INLINE_STRING_CELL_RE = re.compile(
+    r"<c\b(?P<before>[^>]*)\bt=\"inlineStr\"(?P<after>[^>]*)>(?P<body>.*?)</c>",
+    re.DOTALL,
+)
 
 EXPECTED_HEADERS = {
     DATA_UTILIZATION_SHEET: ["*data_utilization_name", "data_utilization_description"],
@@ -152,6 +164,118 @@ def write_rows(ws, headers: list[str], rows: list[dict[str, Any]]) -> None:
             if value not in (None, ""):
                 ws.cell(offset, col).value = value
     remove_empty_data_cells(ws, len(headers))
+
+
+def inline_string_text(body: str) -> str:
+    try:
+        root = ET.fromstring(f"<root>{body}</root>")
+    except ET.ParseError:
+        return ""
+    parts: list[str] = []
+    for element in root.iter():
+        if element.tag.rsplit("}", 1)[-1] == "t" and element.text is not None:
+            parts.append(element.text)
+    if parts:
+        return "".join(parts)
+    return "".join(root.itertext())
+
+
+def shared_string_item(text: str) -> str:
+    space = ' xml:space="preserve"' if text != text.strip() else ""
+    return f"<si><t{space}>{xml_escape(text)}</t></si>"
+
+
+def shared_strings_xml(items: list[str], reference_count: int) -> bytes:
+    body = "".join(shared_string_item(item) for item in items)
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        f'<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        f'count="{reference_count}" uniqueCount="{len(items)}">{body}</sst>'
+    ).encode("utf-8")
+
+
+def add_shared_string_reference(text: str, items: list[str], index_by_text: dict[str, int]) -> int:
+    if text not in index_by_text:
+        index_by_text[text] = len(items)
+        items.append(text)
+    return index_by_text[text]
+
+
+def convert_inline_string_cells(xml: str, items: list[str], index_by_text: dict[str, int]) -> tuple[str, int]:
+    replacements = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal replacements
+        text = inline_string_text(match.group("body"))
+        index = add_shared_string_reference(text, items, index_by_text)
+        attrs = (match.group("before") + match.group("after")).strip()
+        replacements += 1
+        if attrs:
+            return f'<c {attrs} t="s"><v>{index}</v></c>'
+        return f'<c t="s"><v>{index}</v></c>'
+
+    return INLINE_STRING_CELL_RE.sub(replace, xml), replacements
+
+
+def ensure_shared_strings_content_type(xml: bytes) -> bytes:
+    text = xml.decode("utf-8")
+    if "/xl/sharedStrings.xml" in text:
+        return xml
+    override = (
+        f'<Override PartName="/xl/sharedStrings.xml" '
+        f'ContentType="{SHARED_STRINGS_CONTENT_TYPE}"/>'
+    )
+    return text.replace("</Types>", f"{override}</Types>").encode("utf-8")
+
+
+def ensure_shared_strings_relationship(xml: bytes) -> bytes:
+    text = xml.decode("utf-8")
+    if SHARED_STRINGS_REL_TYPE in text:
+        return xml
+    ids = [int(match) for match in re.findall(r'Id="rId(\d+)"', text)]
+    next_id = max(ids, default=0) + 1
+    relationship = (
+        f'<Relationship Id="rId{next_id}" Type="{SHARED_STRINGS_REL_TYPE}" '
+        'Target="sharedStrings.xml"/>'
+    )
+    return text.replace("</Relationships>", f"{relationship}</Relationships>").encode("utf-8")
+
+
+def rewrite_inline_strings_as_shared_strings(path: Path) -> int:
+    """Match production exports by storing text cells in sharedStrings.xml."""
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    string_items: list[str] = []
+    index_by_text: dict[str, int] = {}
+    reference_count = 0
+    converted_cells = 0
+
+    with zipfile.ZipFile(path, "r") as zin:
+        entries: dict[str, bytes] = {}
+        infos: dict[str, zipfile.ZipInfo] = {}
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if info.filename.startswith("xl/worksheets/") and info.filename.endswith(".xml"):
+                xml, replacements = convert_inline_string_cells(data.decode("utf-8"), string_items, index_by_text)
+                data = xml.encode("utf-8")
+                reference_count += replacements
+                converted_cells += replacements
+            if info.filename == CONTENT_TYPES_PATH:
+                data = ensure_shared_strings_content_type(data)
+            elif info.filename == WORKBOOK_RELS_PATH:
+                data = ensure_shared_strings_relationship(data)
+            if info.filename != SHARED_STRINGS_PATH:
+                entries[info.filename] = data
+                infos[info.filename] = info
+
+    if converted_cells == 0:
+        return 0
+
+    with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+        for filename, data in entries.items():
+            zout.writestr(infos[filename], data)
+        zout.writestr(SHARED_STRINGS_PATH, shared_strings_xml(string_items, reference_count))
+    tmp_path.replace(path)
+    return converted_cells
 
 
 def ordered_unique(values: list[str]) -> list[str]:
@@ -536,6 +660,7 @@ def build_workbook(args: argparse.Namespace) -> dict[str, int]:
 
     args.out_xlsx.parent.mkdir(parents=True, exist_ok=True)
     wb.save(args.out_xlsx)
+    rewrite_inline_strings_as_shared_strings(args.out_xlsx)
 
     counts = {
         DATA_UTILIZATION_SHEET: len(du_rows),
