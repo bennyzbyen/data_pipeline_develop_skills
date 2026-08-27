@@ -256,6 +256,10 @@ try {
             Script = "skills\report-codegen\scripts\verify_qas_synthetic_acceptance.py"
         },
         [ordered]@{
+            Name = "negative_contract_safety"
+            Script = "scripts\verify_negative_contract_safety.py"
+        },
+        [ordered]@{
             Name = "pipelineforge_end_to_end"
             Script = "scripts\verify_pipelineforge_end_to_end.py"
         },
@@ -274,6 +278,18 @@ try {
         [ordered]@{
             Name = "pipeline_excel_synthetic_regression"
             Script = "skills\pipeline-excel-builder\scripts\verify_pipeline_excel_synthetic_regression.py"
+        },
+        [ordered]@{
+            Name = "pipeline_excel_input_robustness"
+            Script = "skills\pipeline-excel-builder\scripts\verify_pipeline_excel_input_robustness.py"
+        },
+        [ordered]@{
+            Name = "ddl_input_robustness"
+            Script = "skills\db-ddl-generator-skill\scripts\verify_ddl_input_robustness.py"
+        },
+        [ordered]@{
+            Name = "data_job_log_input_robustness"
+            Script = "skills\data-job-log-debugger\scripts\verify_data_job_log_input_robustness.py"
         }
     )
     foreach ($regression in $regressions) {
