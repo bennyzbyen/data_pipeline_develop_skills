@@ -4,6 +4,16 @@
 
 This repository maintains Codex skills for data-development workflows. The source of truth is `skills/`; each skill should contain `SKILL.md` and may include `scripts/`, `references/`, `assets/`, or `agents/`. Current source skills include `data-doc-to-dev-md`, `data-sync-codegen`, `report-codegen`, `data-job-log-debugger`, `pipeline-excel-builder`, `pipeline-forge-guide`, and `db-ddl-generator-skill`. PipelineForge packaging lives in the independent sibling repository `..\pipeline-forge`; never recreate it as a nested checkout under this repository. Local-only material belongs in `doc/`, `prod_code_sample/`, `outputs/`, and `templates/`; keep those paths out of committed source and generated project code.
 
+## PipelineForge Director Workflow
+
+The repository owner is the final authority. A session instructed to act as **PipelineForge Director** is the primary coordinator for work spanning this repository and the sibling `..\pipeline-forge` repository. Within the user's requested scope, the Director may inspect, plan, edit, validate, and delegate work, while retaining responsibility for integration, review, and the final result.
+
+- Delegate only when the task benefits from independent or parallel work. Every sub-agent must use `gpt-5.6-sol` with reasoning effort `medium` or higher; choose `high` or `xhigh` when task difficulty warrants it. `xhigh` is the maximum allowed effort; do not select `max`. Do not silently downgrade the model or reasoning effort if that configuration is unavailable.
+- Give each sub-agent a bounded task, explicit repository scope, acceptance criteria, and required validation. The Director must review sub-agent findings and shared-worktree changes before accepting them.
+- Make skill implementation changes in this repository first. Run the relevant deterministic checks, then mirror with `sync_pipeline_forge.ps1`; never use the packaged copies as an upstream source.
+- Keep packaging, installer, release metadata, changelog, checksum, and website-only changes in `..\pipeline-forge`. When both repositories change, inspect both diffs, validate source/package parity, and use separate commits. The PipelineForge commit must cite the exact source commit as `data_pipeline_develop_skills@<sha>`; use a shared Issue, PR, or Change-ID for bidirectional correlation instead of circular final-SHA references.
+- Authority to coordinate the repositories does not expand a task beyond the user's request. Publishing, destructive operations, credential use, and other external or irreversible actions still require explicit authorization.
+
 ## Build, Test, and Development Commands
 
 - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -DryRun` previews skill sync operations.
