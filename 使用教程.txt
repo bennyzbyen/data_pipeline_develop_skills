@@ -21,20 +21,23 @@ new_project/
   requirement/
     xxx.docx
   dev_doc/
+    technical_design.md
+    structured_facts.json
+    questions.md
   src/
   logs/
 
 说明：
 
 - requirement/：放 PRD、DataEngine、水线文档、报表需求文档等。
-- dev_doc/：放 AI 可读开发文档。
+- dev_doc/：固定放三份正式交接文件；technical_design.md 内含 HLD 与组件 LLD。
 - src/：放生成出来的数据同步或报表开发代码。
 - logs/：放部署后打印出来的完整日志。
 
 
 三、整体使用顺序
 
-1. 使用 data-doc-to-dev-md，把 DOCX 需求文档转成 dev_doc.md。
+1. 使用 data-doc-to-dev-md，把 DOCX 需求文档转成 technical_design.md。
 2. 根据项目类型选择：
    - 数据同步项目：使用 data-sync-codegen。
    - 报表开发项目：使用 report-codegen。
@@ -47,12 +50,12 @@ new_project/
 对 Codex 说：
 
 使用 $data-doc-to-dev-md，把 requirement/xxx.docx 转成 AI 可读开发文档，输出到 dev_doc/。
-先提取正文和嵌入 Excel，再生成 dev_doc.md、structured_facts.json、questions.md。
+先提取正文和嵌入 Excel，再生成 technical_design.md、structured_facts.json、questions.md。
 不要生成代码。
 
 输出文件一般包括：
 
-- dev_doc/dev_doc.md
+- dev_doc/technical_design.md
 - dev_doc/structured_facts.json
 - dev_doc/questions.md
 - extracted/extracted_document.md
@@ -60,9 +63,12 @@ new_project/
 
 重点检查：
 
-- dev_doc.md 是否包含源表、目标表、字段映射、处理流程、写入策略、调度重跑、参数设计。
+- technical_design.md 是否包含源表、目标表、字段映射、处理流程、写入策略、调度重跑、参数设计。
+- technical_design.md 是否明确分为 HLD、LLD、验证与 Codegen Readiness。
 - structured_facts.json 是否提取到了表、字段、映射、目标表等结构化信息。
-- questions.md 是否列出了需要你确认的问题。
+- structured_facts.json.codegen_contract 是否包含项目类型、组件类型、组件、blockers 和 ready_for_codegen。
+- questions.md 是否把问题分成 Blocking Code Generation、Deployment Confirmation 和 Non-Blocking。
+- extracted/ 只作为审计和排错证据，正常 codegen 不需要读取。
 
 
 五、第二步：数据同步项目生成
@@ -80,7 +86,7 @@ new_project/src/
 
 然后对 Codex 说：
 
-使用 $data-sync-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+使用 $data-sync-codegen，根据 dev_doc/technical_design.md、dev_doc/structured_facts.json 和 dev_doc/questions.md，
 在 src/ 目录生成数据同步项目代码。
 这是 COT / DataEngine 数据同步项目。
 配置里的密钥、IP、token 全部保留占位符。
@@ -111,7 +117,7 @@ new_project/src/
 
 然后对 Codex 说：
 
-使用 $report-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+使用 $report-codegen，根据 dev_doc/technical_design.md、dev_doc/structured_facts.json 和 dev_doc/questions.md，
 在 src/ 目录生成报表开发项目代码。
 使用 DataSource / DataProcess / DataStorage 三段式。
 默认按 supervisor_portal 风格；如果是 HBase + FS + ClickHouse 复杂报表，再参考 vehicle_verification 风格。
@@ -189,13 +195,13 @@ data-job-log-debugger 默认会先排查：
 1. 文档转开发文档
 
 使用 $data-doc-to-dev-md，把 requirement/xxx.docx 转成 AI 可读开发文档，输出到 dev_doc/。
-先提取正文和嵌入 Excel，再生成 dev_doc.md、structured_facts.json、questions.md。
+先提取正文和嵌入 Excel，再生成 technical_design.md、structured_facts.json、questions.md。
 不要生成代码。
 
 
 2. 数据同步代码生成
 
-使用 $data-sync-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+使用 $data-sync-codegen，根据 dev_doc/technical_design.md、dev_doc/structured_facts.json 和 dev_doc/questions.md，
 在 src/ 目录生成数据同步项目代码。
 这是 COT / DataEngine 数据同步项目。
 配置里的密钥、IP、token 全部保留占位符。
@@ -205,7 +211,7 @@ gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
 
 3. 报表开发代码生成
 
-使用 $report-codegen，根据 dev_doc/dev_doc.md 和 dev_doc/structured_facts.json，
+使用 $report-codegen，根据 dev_doc/technical_design.md、dev_doc/structured_facts.json 和 dev_doc/questions.md，
 在 src/ 目录生成报表开发项目代码。
 使用 DataSource / DataProcess / DataStorage 三段式。
 默认按 supervisor_portal 风格；如果是 HBase + FS + ClickHouse 复杂报表，再参考 vehicle_verification 风格。
@@ -224,8 +230,8 @@ gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
 
 十、关键原则
 
-1. 需求文档先转 dev_doc.md，不要直接从 DOCX 生成代码。
-2. dev_doc/questions.md 里的关键问题要先确认。
+1. 需求文档先转 technical_design.md，不要直接从 DOCX 生成代码。
+2. dev_doc/questions.md 中 Blocking Code Generation 的问题要先确认；部署确认和非阻塞问题不妨碍安全脚手架生成。
 3. 数据同步和报表开发不要混用 skill。
 4. gateway/、hbase/、fs/ 是固定平台包，不放业务逻辑。
 5. 配置文件里的密钥、IP、token 默认使用占位符。
