@@ -256,6 +256,18 @@ try {
             Script = "skills\report-codegen\scripts\verify_qas_synthetic_acceptance.py"
         },
         [ordered]@{
+            Name = "pipelineforge_end_to_end"
+            Script = "scripts\verify_pipelineforge_end_to_end.py"
+        },
+        [ordered]@{
+            Name = "data_job_log_regression"
+            Script = "skills\data-job-log-debugger\scripts\verify_data_job_log_regression.py"
+        },
+        [ordered]@{
+            Name = "cross_database_ddl_matrix"
+            Script = "skills\db-ddl-generator-skill\scripts\verify_cross_database_matrix.py"
+        },
+        [ordered]@{
             Name = "clickhouse_deployment_profile"
             Script = "skills\db-ddl-generator-skill\scripts\verify_clickhouse_deployment_profile.py"
         },
