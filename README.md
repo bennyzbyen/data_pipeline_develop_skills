@@ -17,6 +17,8 @@ This repository maintains Codex Skills for Python data development workflows.
 ```text
 skills/              Source-of-truth skill directories
 deploy_skills.ps1    Sync skills into the local Codex runtime skill directory
+invoke_source_validation.ps1
+                     Run deterministic source checks and regression tests
 sync_pipeline_forge.ps1
                      Mirror source skills into the sibling PipelineForge repository
 使用教程.txt          End-user workflow notes
@@ -38,7 +40,7 @@ Those directories may contain internal documents, production code, generated art
 PipelineForge is an independent sibling Git repository, not a nested repository:
 
 ```text
-D:\Benny\
+<workspace>\
 ├── skill_lab\          Source-of-truth skills
 └── pipeline-forge\     Plugin packaging and releases
 ```
@@ -52,6 +54,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\sync_pipeline_forge.ps
 
 The sync script validates that the destination is the sibling PipelineForge Git repository before mirroring. Do not edit packaged skill copies as the source of truth or copy them back into `skill_lab`.
 
+## Validate Source
+
+Install the validation-only dependencies, then run the unified Windows entrypoint:
+
+```powershell
+python -m pip install --requirement .\requirements-validation.txt
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\invoke_source_validation.ps1 -JsonOut .\outputs\source-validation-summary.json -JUnitOut .\outputs\source-validation-junit.xml
+```
+
+The command checks Python syntax, verifies that the DDL templates are tracked, scans source deliverables for sensitive values and machine-specific absolute paths, and runs every self-contained deterministic regression suite. It exits nonzero on any failed check and can write UTF-8 JSON and JUnit XML reports. Tests use synthetic fixtures and do not connect to real services.
+
 ## Project History
 
 Git commits and pull requests are the engineering record. Non-trivial commits should explain `Why`, list `Validation` results, and cite the related PipelineForge commit when both repositories change. PipelineForge release notes belong in its `CHANGELOG.md`; unresolved follow-up work belongs in GitHub Issues.
@@ -59,11 +72,11 @@ Git commits and pull requests are the engineering record. Non-trivial commits sh
 ## Deploy Locally
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\Benny\skill_lab\deploy_skills.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1
 ```
 
 The default Codex runtime target is:
 
 ```text
-C:\Users\51217\.codex\skills
+%USERPROFILE%\.codex\skills
 ```

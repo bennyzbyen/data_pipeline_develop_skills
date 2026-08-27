@@ -10,7 +10,7 @@ __pycache__/
 # These may contain internal requirements, production code, paths, keys, tokens, or logs.
 doc/
 prod_code_sample/
-templates/
+/templates/
 
 # PipelineForge is maintained as a sibling Git repository, never as a nested checkout.
 /plugins/
