@@ -12,6 +12,9 @@ doc/
 prod_code_sample/
 templates/
 
+# PipelineForge is maintained as a sibling Git repository, never as a nested checkout.
+/plugins/
+
 # Local secrets and environment overrides
 .env
 .env.*
