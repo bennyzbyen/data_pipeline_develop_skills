@@ -16,6 +16,347 @@ Use it to record:
 
 This file is **not** a runtime dependency of any skill.
 
+## 2026-08-21 - PipelineForge Semantic Versioning Baseline
+
+### Objective
+
+- Replace timestamp-based public plugin versions with a meaningful Semantic Versioning policy.
+- Establish `1.0.2` as the stable PipelineForge baseline.
+- Keep the plugin manifest, companion site, changelog, and downloadable package synchronized.
+
+### Changes
+
+| Area | Change |
+| --- | --- |
+| Release policy | Added `VERSIONING.md` with MAJOR/MINOR/PATCH, prerelease, and no-decimal-carry rules |
+| Version sources | Updated the plugin manifest, site package metadata, displayed version, site regression, and changelog to `1.0.2` |
+| Validation | Added strict SemVer syntax and cross-file version consistency checks to `validate_package.py` |
+| Distribution | Included versioning and changelog documentation in the downloadable archive and rebuilt the ZIP/checksum |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| PipelineForge package validation | Pass |
+| Download archive build and installer validation | Pass, installed manifest reports `1.0.2` |
+| Companion site build and rendered HTML tests | Pass, 2 tests |
+| Companion site lint | Pass with 0 errors and 5 pre-existing `<img>` optimization warnings |
+| Repository deployment dry run | Pass |
+| Plugin repository `git diff --check` | Pass; only line-ending normalization warnings |
+
+## 2026-08-20 - Codegen Contract And Runtime Hardening
+
+### Objective
+
+- Strengthen the two code-generation skills beyond the previous roughly 8/10 baseline.
+- Replace partial-case confidence with complete table/output contract checks.
+- Keep generic report generation usable without translating free-form business text into unsafe guessed code.
+
+### Changes
+
+| Area | Change |
+| --- | --- |
+| COT manifest verification | Added `verify_cot_manifest_semantics.py` to validate every table against manifest counts, fields, dispatch shape, runtime config, targets, rowkey rules, and review status |
+| COT runtime guard | Generated table configs now carry deterministic `contract_issues` and `runtime_enabled`; tables with missing dictionaries or configured columns cannot dispatch until fixed |
+| COT regression | Added a positive one-table contract and an expected-failure period-column case proving the runtime guard is emitted |
+| Generic report contract | Added a versioned, bounded, non-eval DSL for sources, filters, joins, derivations, aggregations, projections, outputs, and ClickHouse writes |
+| Generic report runtime | Added real generated source adapters, deterministic contract execution, exact final-column projection, safe identifier/value handling, and empty-output no-delete behavior |
+| Report generation gate | Generic standard/bySKU full scaffolding now rejects missing or invalid execution contracts; `--allow-blocked-scaffold` remains review-only |
+| Report plan verification | Added complete output, field-rule, target, generated-config, placeholder, execution-contract, and write-contract verification |
+| Report runtime regressions | Added generated standard/bySKU contract runs and extended HBase prepare runtime semantics to cover daily/R13P export, filter/group behavior, cleanup, and pipeline activation |
+| Beginner guide | Added all-table sync verification, all-output report verification, and generic execution-contract routing |
+| Plugin release | Synced the package and personal source, updated documentation/site, and bumped cachebuster to `0.1.0+codex.20260820110400` |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| COT manifest regression | Pass: valid contract passes; invalid period contract is detected and runtime-disabled |
+| Existing COT lifecycle semantics | Pass: 6/6 cases |
+| Real COT2026 30-table scan | Correctly detects `freshness_report.period` missing from the field dictionary; `freshness_report` and the missing-dictionary weekly GPS table are runtime-disabled |
+| Generic standard/bySKU runtime | Pass: 2/2 generated projects; filter, derive, join, aggregate, projection, replace write, observability, and empty-output safety checked |
+| HBase prepare runtime | Pass: 1 daily export, 13 init exports, 2 aggregated rows, 1 pipeline activation, no leftover local gzip files |
+| Existing vehicle report runtime | Pass: 3 outputs and 3 injected ClickHouse writes |
+| Existing supervisor report runtime | Pass: 7 outputs and 7 injected ClickHouse writes |
+| Legacy bySKU plan audit | Correctly reports 42 structural/contract errors across 13 outputs instead of claiming scaffold completeness |
+| Python compilation | Pass for every source skill helper and packaged helper |
+| PipelineForge package validation | Pass with exact source/package alignment |
+| Companion site | Pass: production build and 2/2 rendered HTML tests |
+| Skill deployment | Pass: all six repository source skills refreshed under `%USERPROFILE%\.codex\skills` |
+| Personal plugin source | Pass: version `0.1.0+codex.20260820110400`; sync/report/guide source hashes match the workspace package |
+
+### Remaining Risks
+
+- The real COT2026 document remains `SAFE_SCAFFOLD`, not deployment-ready, until the missing weekly GPS dictionary, `freshness_report` period evidence, and rowkey confirmations are resolved.
+- Generic report execution contracts are intentionally not inferred automatically from ambiguous natural-language rules. A confirmed normalization step is still required before full generation.
+- Production Gateway, HBase, FS, MSSQL, MySQL, ClickHouse, and DataHub behavior still requires deployment-environment clients and log validation.
+- The active Codex task retains its already-loaded plugin cache; a new task is required to load the new cachebuster.
+
+## 2026-08-20 - PipelineForge Beginner Guide
+
+### Objective
+
+- Add a one-stop beginner entrypoint that routes PipelineForge tasks without weakening the specialist skill boundaries.
+- Guide users from source material through blocker handling, safe generation, deterministic verification, and an explicit handoff status.
+
+### Changes
+
+| Area | Change |
+| --- | --- |
+| `skills/pipeline-forge-guide/` | Added the source-of-truth guide with document-to-delivery, specialized-route, and beginner-question references plus UI metadata |
+| Packaged guide | Added the same five files byte-for-byte under `plugins/pipeline-forge/skills/pipeline-forge-guide/` |
+| Guide contract | Defines Assess, Route, Build, Verify, and Handoff stages; asks at most three blocking questions at a time |
+| Status model | Adds `BLOCKED_INPUT`, `SAFE_SCAFFOLD`, `VERIFIED_TEST`, and `READY_FOR_DEPLOYMENT_REVIEW`; local checks alone never imply production readiness |
+| Plugin packaging | Requires the exact seven-skill package and validates the guide's three references, six specialist routes, and four statuses |
+| Metadata and docs | Updated plugin prompts, multilingual READMEs, changelog, deployment list, and cachebuster `0.1.0+codex.20260820023155` |
+| Companion site | Added a prominent guided-workflow capability, seven-module copy, updated workflow language, and version regression |
+
+### Verification And Deployment
+
+| Check | Result |
+| --- | --- |
+| Skill creator validation | Pass for all 13 source and packaged skill directories; UTF-8 mode used on Windows for Chinese metadata |
+| Source/package alignment | Pass for the five guide files with no file or SHA-256 differences |
+| PipelineForge package and manifest validation | Pass for workspace package and personal plugin source |
+| Python helper compilation | Pass for all 12 source helper scripts |
+| Companion site | Pass: production build and 2/2 rendered HTML tests |
+| Deployment dry run | Pass for all six repository source skills including the guide |
+| Standalone guide deployment | Synced five files to `%USERPROFILE%\.codex\skills\pipeline-forge-guide`; 0 hash differences |
+| Personal plugin source | Synced 113 runtime files; workspace/personal file-set differences 0 and content differences 0 |
+| Host cache handoff | Current CLI exposes only `codex plugin marketplace`; `plugin add` is unavailable. The new cachebuster will be picked up by a new Codex task; the active task retains the previous cache. |
+
+## 2026-08-20 - Full Source Skill Deployment
+
+### Deployment
+
+- Ran `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -Clean`.
+- Refreshed all five source skills under `C:\Users\51217\.codex\skills`: `data-doc-to-dev-md`, `data-sync-codegen`, `report-codegen`, `data-job-log-debugger`, and `pipeline-excel-builder`.
+- Verified every deployed file by relative path and SHA-256 against `skills/`: 77 source files, 77 target files, 0 missing files, and 0 hash mismatches.
+- The clean operation was limited to these five named target directories; unrelated system, plugin, and personal skills were not removed.
+
+## 2026-08-20 - PipelineForge COT2026 Real-Document Test
+
+### Objective
+
+- Exercise the installed PipelineForge plugin end to end against `doc/COT2026同步数据到DataEngine的设计文档.docx`.
+- Validate document extraction, routing, safe scaffold generation, runtime observability, and fake-runtime semantics without connecting to production services.
+
+### Finding And Fix
+
+| Finding | Impact | Fix |
+| --- | --- | --- |
+| Generic bySKU detection treated the `sku` substring inside `bysku` as independent SKU-family evidence | A normal COT matrix containing `zo_bysku_detail_p` routed the entire 30-table document to `report / bysku_report_pipeline` | Require separate NPD/B5/新品, SKU config, prepare/calculation, target-family, or R13P evidence before report routing |
+| No regression distinguished a COT bySKU table from a multi-component bySKU calculation pipeline | The false route could return after later extractor changes | Added negative COT-table-sync and positive bySKU-report synthetic fixtures |
+
+### Real-Document Result
+
+| Artifact | Result |
+| --- | --- |
+| Extraction | 1 DOCX, 35 embedded sheets, 2 Word tables |
+| Structured facts | 30 COT table rows, 30 Data Utilizations, 30 target mappings, 30 schedules, 30 field dictionaries |
+| Corrected routing | `data-sync / cot_table_sync`; no bySKU report component hint |
+| Safe test scaffold | 30 tables: 21 with-period and 9 without-period |
+| Remaining document blockers | rowkeys, period classification, table-level legacy/truncate exceptions, and rerun behavior require confirmation |
+| Table-specific question | `cot_gps_tracking_report_by_week` field dictionary/update column/rowkey still require confirmation |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Multi-DOCX and routing regression | Pass, including positive and negative bySKU cases |
+| Source skill validation and Python compilation | Pass |
+| Generated project Python compilation | Pass |
+| Generated code observability | Pass: 15 business files, 73 logger calls, 0 errors |
+| COT fake-runtime semantics | Pass: 6/6 cases |
+| Generated JSON parsing | Pass for params and manifest |
+| Generated-project safety scan | Pass: no workspace-only paths or credential patterns; 9 placeholder references |
+| PipelineForge package and manifest validation | Pass for workspace package and personal-marketplace source; 108 runtime files match |
+| Companion site build and render tests | Pass: `npm test`, 2/2 tests |
+| Deployment dry run | Pass for all 5 repository source skills |
+| PipelineForge release | Cachebuster updated to `0.1.0+codex.20260819163139` and personal-marketplace source synchronized |
+
+### Safety Boundary
+
+- The generated project is a blocked-safe test scaffold, not production-ready code.
+- No database, HBase, FS, Gateway, ClickHouse, or production service connection was made.
+- Credentials remain placeholders and workspace-only paths are not encoded in generated runtime files.
+
+## 2026-08-19 - PipelineForge Package Refresh
+
+### Objective
+
+- Refresh `plugins/pipeline-forge/` after the source skills changed.
+- Keep the five repository skills byte-for-byte aligned with `skills/`, add `pipeline-excel-builder`, and refresh the plugin-only DDL skill from the active local copy.
+- Update plugin metadata, documentation, validation, and the companion product site for six packaged modules.
+
+### Changes
+
+| File | Change |
+| --- | --- |
+| `plugins/pipeline-forge/skills/` | Synced all five repository source skills including scripts, references, assets, and agent metadata; added `pipeline-excel-builder`; refreshed `db-ddl-generator-skill` metadata |
+| `plugins/pipeline-forge/.codex-plugin/plugin.json` | Updated capability copy, starter prompts, and cachebuster to `0.1.0+codex.20260819141852` |
+| `plugins/pipeline-forge/scripts/validate_package.py` | Requires the exact six-skill package and verifies byte-level source/package alignment when run from this monorepo |
+| PipelineForge README and changelog files | Documented the Pipeline Export workbook workflow and current release |
+| `plugins/pipeline-forge/site_create/` | Added the sixth capability, changed the desktop cards to a 3-by-2 grid, updated version/copy/tests, and made npm scripts Windows-compatible |
+| Personal marketplace source | Synced runtime plugin components to `%USERPROFILE%\plugins\pipeline-forge` without editing `marketplace.json` |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Skill creator quick validation | Pass for all 6 packaged skills and all 6 personal-marketplace source skills |
+| Source/package alignment | Pass for the 5 repository source skills |
+| PipelineForge package validator | Pass |
+| Plugin creator manifest validator | Pass for both workspace package and personal-marketplace source |
+| Site build and server-rendered tests | Pass; `npm test`, 2/2 tests |
+| Marketplace cache handoff | Personal marketplace is local rather than Git-backed; the CLI upgrade command is not applicable, so a new Codex task is required to pick up the new cachebuster |
+
+## 2026-08-19 - Three-File Technical Design Handoff
+
+### Objective
+
+- Standardize the formal handoff on exactly three files: `technical_design.md`, `structured_facts.json`, and `questions.md`.
+- Keep the package advanced but compact by combining HLD and component-level LLD in one Technical Design instead of multiplying HLD, LLD, manifest, and traceability files.
+- Give `data-sync-codegen` and `report-codegen` a deterministic machine-readable routing and readiness contract while preserving legacy-input compatibility.
+
+### Changes
+
+| File | Change |
+| --- | --- |
+| `skills/data-doc-to-dev-md/` | Generates the three-file handoff; `technical_design.md` now contains Design Summary, HLD, component LLD, verification, and codegen-readiness sections |
+| `structured_facts.json` contract | Adds `codegen_contract` with contract version, document links, `project_type`, `component_kind`, component list, `ready_for_codegen`, and blockers |
+| `questions.md` | Separates `Blocking Code Generation`, `Deployment Confirmation`, and `Non-Blocking` questions so only real implementation blockers stop full code generation |
+| `skills/data-sync-codegen/` and `skills/report-codegen/` | Read facts, design, then questions; route by contract; reject blocked full scaffolds by default; allow only an explicitly requested safe placeholder through `--allow-blocked-scaffold` |
+| Report plan builder | Carries `codegen_contract` into the disposable report build plan without adding another persistent handoff file |
+| `plugins/pipeline-forge/skills/` | Mirrors the extractor, templates, contracts, scaffold gates, and regressions in the packaging workspace |
+| `使用教程.txt` | Documents the three-file package, read order, readiness gate, legacy fallback, and the fact that `extracted/` is audit evidence rather than normal codegen input |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Skill creator quick validation | Pass |
+| Source multi-DOCX extraction regression | Pass |
+| Packaged multi-DOCX extraction regression | Pass |
+| All source skill Python helper compilation | Pass |
+| PipelineForge package validation | Pass |
+| Actual QAS PRD + waterline extraction | Pass: 2 documents, 38 embedded sheets, and 68 Word tables; routed as `report / standard_report` with explicit blockers |
+| Report contract plan and scaffold gate | Pass: contract copied to plan; blocked full scaffold rejected; explicitly allowed safe scaffold generated |
+| Codegen routing | Pass: bySKU report contract rejected by data-sync scaffold and routed to report codegen |
+| Legacy compatibility | Pass: legacy report plan and legacy COT sync scaffold generated without `codegen_contract` |
+| Runtime and observability regressions | Pass: COT 6 cases, supervisor 7 outputs/inserts, vehicle 3 outputs/inserts; sync/report static observability checks pass |
+| Deployment dry run | Pass for all 5 source skills |
+
+### Compatibility
+
+- New extraction runs write only the formal three-file package under `dev_doc/`; no separate HLD, LLD, manifest, traceability, or persistent codegen-plan documents are required.
+- `technical_design.md` is a Technical Design whose declared coverage is HLD plus component LLD; it is not presented as two independently governed architecture documents.
+- Existing legacy `dev_doc.md` files are not deleted from reused output directories; the extractor prints a warning and identifies `technical_design.md` as the current handoff.
+- `data-sync-codegen` and `report-codegen` continue to accept existing packages without `codegen_contract` and projects that still provide `dev_doc.md`.
+- Actual deployment to `%USERPROFILE%\.codex\skills` was not performed; only `-DryRun` was executed.
+
+## 2026-08-19 - GPT-5.6 Skill Entrypoint Slimming
+
+### Objective
+
+- Reduce generic, repeated, and script-enforced instructions for GPT-5.6 Sol while preserving domain decisions, hard constraints, and success criteria.
+- Make conditional references load only for the active report or diagnostic shape.
+- Keep deterministic extraction, scaffolding, workbook XML, and runtime-semantic behavior in scripts and verifiers.
+
+### Changes
+
+| File | Change |
+| --- | --- |
+| `skills/*/SKILL.md` | Reduced the five entrypoints from 424 lines to 204 lines; removed generic file inspection, planning, formatting, and syntax-check prose while retaining domain contracts and verification gates |
+| `skills/report-codegen/SKILL.md` | Replaced unconditional supervisor-first loading with routing for supervisor, vehicle, bySKU, HBase prepare, and unrelated standard reports |
+| `skills/report-codegen/references/hbase_prepare_pipeline_patterns.md` | Added a dedicated HBase-to-FS prepare/pipeline reference |
+| `skills/report-codegen/references/supervisor_portal_patterns.md` | Limited the reference to supervisor-portal target families and removed the HBase prepare mode |
+| `skills/report-codegen/agents/openai.yaml` | Replaced the supervisor-biased default prompt with a generic matching-report prompt |
+| `skills/pipeline-excel-builder/SKILL.md` | Made normal generation script-first; detailed sheet/XML rules are loaded only for mapping changes or validation diagnosis |
+| `skills/pipeline-excel-builder/references/fill_rules.md` | Made explicit user-confirmed workbook overrides the highest evidence priority |
+| `skills/data-job-log-debugger/references/common_failure_modes.md` | Removed generic Python/PowerShell debugging advice and retained DataEngine params, incremental state, platform stages, and destructive rerun rules |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Skill creator validation | Pass for all 5 source skills |
+| Routed resource existence | Pass; all referenced scripts, assets, and references exist |
+| Python helper compilation | Pass for all skill `.py` files |
+| Multi-DOCX extraction regression | Pass |
+| Log debugger regression | Pass, 5/5 classifications and primary patterns match baseline |
+| COT fake-runtime verifier | Pass, 6 cases |
+| Supervisor portal fake-runtime verifier | Pass, 7 output tables and 7 inserts |
+| Vehicle verification fake-runtime verifier | Pass, 3 output tables and 3 inserts |
+| Pipeline generated/gold workbook validation | Pass, 0 errors; row counts `1 / 11 / 291 / 3`; 3 expected blank-MLP warnings |
+| Deployment dry run | Pass for all 5 source skills |
+
+### Notes
+
+- This iteration changed only the source-of-truth `skills/` tree and this maintenance log. The untracked `plugins/` packaging workspace was not modified.
+- Actual deployment to `%USERPROFILE%\.codex\skills` was not performed; only `-DryRun` was executed.
+- Runtime-semantics and validation outputs were written under existing ignored `outputs/` regression directories.
+
+## 2026-08-19 - Code Comment And Runtime Logging Standardization
+
+### Objective
+
+- Optimize `data-sync-codegen` and `report-codegen` using production business code as comparison evidence.
+- Make generated comments explain durable business constraints instead of narrating syntax.
+- Make generated logs sufficient for stage diagnosis, row-count reconciliation, rerun safety, and duration analysis without exposing raw parameters, credentials, row values, or full SQL.
+
+### Production Evidence Reviewed
+
+| Shape | Sample evidence | Patterns retained |
+| --- | --- | --- |
+| COT with/without period | `prod_code_sample/cot_202604101607` business modules | change detection, manual/automatic mode, source/target counts, write ordering, timestamp guard, stage failure context |
+| Supervisor/report KPI | `prod_code_sample/datahub_executing_king` business modules | source ranges, filter/join/aggregation counts, named outputs, target replacement, retry attempts |
+| Vehicle verification | `prod_code_sample/vehicle_verification_202605221431` business modules | DataSource/DataProcess/DataStorage timing, source rows, output rows/columns, delete-before-insert lifecycle |
+
+Fixed `gateway/`, `hbase/`, and `fs/` packages were excluded from business-pattern conclusions. Production credentials, raw params, `print`, commented-out code, and INFO-level full SQL were explicitly treated as patterns not to copy.
+
+### Changes
+
+| File | Change |
+| --- | --- |
+| `skills/data-sync-codegen/references/code_comments_and_runtime_logging.md` | Added COT-specific comment rules, lifecycle events, required stage context, safe parameter/SQL boundaries, retry and failure rules |
+| `skills/report-codegen/references/code_comments_and_runtime_logging.md` | Added report-specific comment rules and DataSource/DataProcess/DataStorage observability contract |
+| Both codegen `SKILL.md` files | Made the new observability reference mandatory for code generation/review and added the static verifier to the workflow |
+| `skills/data-sync-codegen/assets/minimal_sync_project/` | Added pipeline/class contracts, requirement/safety comments, allowlisted dispatch logs, source/target counts, durations, skip reasons, timestamp guard logs, and single-boundary exception logging; removed raw params and INFO-level full SQL logs |
+| `skills/report-codegen/assets/minimal_report_project/` | Added pipeline/class contracts, allowlisted dispatch summary, three-stage lifecycle/duration/output logs, and single-boundary failure logging |
+| `skills/report-codegen/scripts/scaffold_report_project.py` | Added generated class contracts and requirement/safety comments for vehicle, supervisor, HBase prepare, generic, and storage branches; added filter/join/aggregation counts; replaced raw SQL logs with operation/predicate summaries; standardized skip/retry/component messages |
+| Both `scripts/verify_codegen_observability.py` files | Added AST-based checks for runtime `print`, raw `params`, direct full-SQL logging, sensitive log labels, missing contract docstrings, and missing orchestration lifecycle events |
+| `skills/data-sync-codegen/scripts/verify_cot_runtime_semantics.py` | Extended the fake logger with `exception()` for the new single-boundary failure pattern |
+
+### Generated Regression Projects
+
+| Shape | Path | Static result |
+| --- | --- | --- |
+| COT sync | `outputs/observability_verify_20260819_sync` | Pass, 15 business files and 73 logger calls |
+| Supervisor Portal | `outputs/observability_verify_20260819_supervisor` | Pass, 8 business files and 22 logger calls |
+| Vehicle verification | `outputs/observability_verify_20260819_vehicle` | Pass, 8 business files and 29 logger calls |
+| HBase prepare | `outputs/observability_verify_20260819_prepare` | Pass, 8 business files and 17 logger calls |
+| Generic/bySKU scaffold | `outputs/observability_verify_20260819_generic` | Pass, 8 business files and 17 logger calls; no invented domain comments for placeholder logic |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Observability verifier across five generated shapes | Pass, no unsafe logger or comment-contract errors |
+| Generated domain comments | Pass; COT 4, Supervisor 3, Vehicle 5, HBase Prepare 3 `Requirement:`/`Safety:` comments |
+| COT fake-runtime verifier | Pass, 6 cases |
+| Supervisor portal fake-runtime verifier | Pass, 7 inserts and 7 storage metrics |
+| Vehicle verification fake-runtime verifier | Pass, 3 inserts and 3 storage metrics |
+| Skill and generated-project Python compilation | Pass |
+| Skill creator validation | Pass for `data-sync-codegen` and `report-codegen` |
+| Deployment dry run | Pass for all 5 source skills |
+
+### Notes And Remaining Risks
+
+- The new stable event vocabulary is `pipeline_start`, `stage_start`, `stage_complete`, `stage_skip`, `pipeline_complete`, and `pipeline_failed`; external log parsers that depended on old prose should be checked before deployment.
+- Full SQL remains available to code review or a safe DEBUG-only path after sensitive-value review; generated INFO logs intentionally report operation, table, predicate type, and counts instead.
+- Actual deployment was not performed. The untracked `plugins/` packaging workspace was not modified or synchronized in this iteration.
+
 ## 2026-07-08 - Pipeline Excel Builder Skill
 
 ### Objective

@@ -7,7 +7,8 @@ param(
         "data-sync-codegen",
         "report-codegen",
         "data-job-log-debugger",
-        "pipeline-excel-builder"
+        "pipeline-excel-builder",
+        "pipeline-forge-guide"
     ),
     [switch]$DryRun,
     [switch]$Clean

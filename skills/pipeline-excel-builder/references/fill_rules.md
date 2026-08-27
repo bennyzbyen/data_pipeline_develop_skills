@@ -2,10 +2,10 @@
 
 ## Evidence Priority
 
-1. DataEngine/waterline technical document embedded Excel and Word tables.
-2. DataEngine/waterline technical document paragraphs near the embedded table.
-3. PRD tables and paragraphs.
-4. User-confirmed overrides.
+1. Explicit user-confirmed overrides for this workbook.
+2. DataEngine/waterline technical document embedded Excel and Word tables.
+3. DataEngine/waterline technical document paragraphs near the embedded table.
+4. PRD tables and paragraphs.
 5. Production Excel examples, only for schema/style reference unless the user explicitly authorizes copying business values.
 
 ## Workbook Write Mode
