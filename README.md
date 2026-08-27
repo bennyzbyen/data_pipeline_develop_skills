@@ -9,13 +9,16 @@ This repository maintains Codex Skills for Python data development workflows.
 - `report-codegen`: generate DataEngine report development project scaffolds.
 - `data-job-log-debugger`: diagnose deployed DataEngine/DataHub job failures from logs or screenshots.
 - `pipeline-excel-builder`: build DataHub/DataEngine Pipeline Export Excel workbooks from waterline documents.
+- `pipeline-forge-guide`: route document-to-delivery work across the PipelineForge skills.
+- `db-ddl-generator-skill`: generate and review portable database DDL with explicit deployment profiles.
 
 ## Repository Layout
 
 ```text
 skills/              Source-of-truth skill directories
 deploy_skills.ps1    Sync skills into the local Codex runtime skill directory
-ITERATION_LOG.md     Engineering iteration and regression log
+sync_pipeline_forge.ps1
+                     Mirror source skills into the sibling PipelineForge repository
 使用教程.txt          End-user workflow notes
 ```
 
@@ -29,6 +32,29 @@ templates/
 ```
 
 Those directories may contain internal documents, production code, generated artifacts, logs, paths, keys, or tokens.
+
+## PipelineForge Repository
+
+PipelineForge is an independent sibling Git repository, not a nested repository:
+
+```text
+D:\Benny\
+├── skill_lab\          Source-of-truth skills
+└── pipeline-forge\     Plugin packaging and releases
+```
+
+Preview or perform the one-way mirror from this repository:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\sync_pipeline_forge.ps1 -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\sync_pipeline_forge.ps1
+```
+
+The sync script validates that the destination is the sibling PipelineForge Git repository before mirroring. Do not edit packaged skill copies as the source of truth or copy them back into `skill_lab`.
+
+## Project History
+
+Git commits and pull requests are the engineering record. Non-trivial commits should explain `Why`, list `Validation` results, and cite the related PipelineForge commit when both repositories change. PipelineForge release notes belong in its `CHANGELOG.md`; unresolved follow-up work belongs in GitHub Issues.
 
 ## Deploy Locally
 
