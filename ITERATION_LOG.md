@@ -16,6 +16,53 @@ Use it to record:
 
 This file is **not** a runtime dependency of any skill.
 
+## 2026-08-27 - PipelineForge Contract V2 And QAS Production-Lessons Hardening
+
+### Objective
+
+- Convert QAS development/QA/production lessons into reusable PipelineForge safeguards without copying production data, credentials, paths, or business constants.
+- Keep contract v1 readable while making contract v2 the default and separating code-generation readiness from strict deployment readiness.
+- Release the backward-compatible feature set as PipelineForge `1.1.0`.
+
+### Changes
+
+| Area | Change |
+| --- | --- |
+| Technical contract | Added v2 field/source/rule/parameter/runtime/write contracts, provenance, conflict detection, stable gates, severity model, and v1-compatible validation |
+| Report runtime | Added parameter-shape normalization, environment connection matrices, DataEngine result-protocol validation, safe-log policy, ordered ClickHouse column/type preflight, exact file wire format, empty-output safety, and replacement-risk acknowledgement |
+| Sync runtime | Added explicit COT period empty/scalar/list semantics, environment profiles, manifest runtime/write contracts, rowkey deployment blockers, and final HBase request verification after wrapper defaults |
+| DDL | Promoted `db-ddl-generator-skill` to root source of truth and required explicit ClickHouse engine, cluster, replication path, `ORDER BY`, and nullable-key acknowledgement instead of environment-based inference |
+| QAS regression | Added self-contained synthetic checks for threshold conflicts, dual thresholds/types, duration boundaries, missing fields, multi-date order/dedup, cross-period isolation, consecutive periods, exact enums, zero output, count reconciliation, and result protocol |
+| Packaging | Synced all seven source skills, bumped plugin/site/download artifacts to `1.1.0`, and rebuilt the installer ZIP/checksum |
+| Contract questions | Added stable `TC-CG-*`, `TC-DP-*`, and `TC-NB-*` identifiers shared by `questions.md`, `codegen_contract.open_questions`, blocker summaries, and user confirmations |
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| Root Python helper compilation | Pass |
+| Skill quick validation | Pass for all 7 skills with `PYTHONUTF8=1` (Windows validator encoding requirement) |
+| Technical contract v1/v2 and stable-question-ID regression | Pass, 4 cases |
+| Multi-DOCX extraction regression | Pass |
+| COT manifest regression | Pass, valid + guarded-invalid cases |
+| COT fake runtime | Pass, 7 cases including final HBase request prefixes |
+| Generic standard/bySKU runtime | Pass, 2 strict-ready v2 cases including ClickHouse file preflight and empty-output guard |
+| Synthetic QAS acceptance | Pass, 6 grouped cases |
+| ClickHouse deployment-profile regression | Pass, 5 cases |
+| PipelineForge package/source sync validation | Pass |
+| Download build and installer validation | Pass, installed manifest reports `1.1.0` |
+| Companion site build/rendered HTML tests | Pass, 2 tests |
+| Companion site lint | Pass with 0 errors and 5 pre-existing `<img>` warnings |
+| Credential/private-IP literal scan | Pass |
+| Deployment dry run | Pass, includes root DDL skill |
+| Root/plugin `git diff --check` | Pass; line-ending normalization warnings only |
+
+### Remaining Deployment Decisions
+
+- Real projects must still confirm environment-specific connections, rowkeys, source ranges, ClickHouse engine/cluster/replication profile, target types, and atomic/recoverable replacement strategy.
+- Contract v1 remains usable for review/code generation, but strict deployment intentionally blocks until v2 decisions are supplied.
+- No production connection or SQL execution was performed; QAS-derived regression data is synthetic and self-contained.
+
 ## 2026-08-21 - PipelineForge Semantic Versioning Baseline
 
 ### Objective

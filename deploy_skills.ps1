@@ -8,7 +8,8 @@ param(
         "report-codegen",
         "data-job-log-debugger",
         "pipeline-excel-builder",
-        "pipeline-forge-guide"
+        "pipeline-forge-guide",
+        "db-ddl-generator-skill"
     ),
     [switch]$DryRun,
     [switch]$Clean
