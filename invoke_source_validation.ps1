@@ -236,6 +236,10 @@ try {
             Script = "skills\data-doc-to-dev-md\scripts\verify_technical_contract_regression.py"
         },
         [ordered]@{
+            Name = "docx_bundle_structure"
+            Script = "skills\data-doc-to-dev-md\scripts\verify_extract_docx_bundle_compat.py"
+        },
+        [ordered]@{
             Name = "docx_bundle_multidoc_regression"
             Script = "skills\data-doc-to-dev-md\scripts\verify_docx_bundle_multidoc.py"
         },
@@ -250,6 +254,10 @@ try {
         [ordered]@{
             Name = "generic_report_runtime_semantics"
             Script = "skills\report-codegen\scripts\verify_generic_report_runtime_semantics.py"
+        },
+        [ordered]@{
+            Name = "report_scaffold_structure"
+            Script = "skills\report-codegen\scripts\verify_scaffold_structure.py"
         },
         [ordered]@{
             Name = "qas_synthetic_acceptance"
