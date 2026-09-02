@@ -298,6 +298,10 @@ try {
         [ordered]@{
             Name = "data_job_log_input_robustness"
             Script = "skills\data-job-log-debugger\scripts\verify_data_job_log_input_robustness.py"
+        },
+        [ordered]@{
+            Name = "pipeline_doc_generator_regression"
+            Script = "skills\pipeline-doc-generator\scripts\verify_pipeline_doc_generator.py"
         }
     )
     foreach ($regression in $regressions) {

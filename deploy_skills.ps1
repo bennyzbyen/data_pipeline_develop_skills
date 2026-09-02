@@ -9,7 +9,8 @@ param(
         "data-job-log-debugger",
         "pipeline-excel-builder",
         "pipeline-forge-guide",
-        "db-ddl-generator-skill"
+        "db-ddl-generator-skill",
+        "pipeline-doc-generator"
     ),
     [switch]$DryRun,
     [switch]$Clean
