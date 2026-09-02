@@ -173,7 +173,25 @@ def cot_facts(ready_for_codegen: bool) -> Dict[str, Any]:
 def assert_cot_runtime_blocked(project_dir: Path, table_name: str) -> None:
     params_path = project_dir / "blocked_runtime_params.json"
     write_json(params_path, {"source_table": table_name})
-    result = run_cli([project_dir / "plugin_main.py", params_path], {1})
+    # Exercise the actual entrypoint guard without importing real database SDKs.
+    # Reaching either worker is a test failure, not a successful mocked write.
+    runner_path = project_dir / "assert_blocked_entrypoint.py"
+    runner_path.write_text(
+        "import runpy, sys, types\n"
+        "from pathlib import Path\n"
+        "class ForbiddenWorker:\n"
+        "    def __init__(self, *args, **kwargs):\n"
+        "        raise AssertionError('blocked entrypoint reached a worker')\n"
+        "for module_name, class_name in [('sync_with_period', 'COT_REPORT_WITH_P'), "
+        "('sync_without_period', 'COT_REPORT_WITHOUT_P')]:\n"
+        "    module = types.ModuleType(module_name)\n"
+        "    setattr(module, class_name, ForbiddenWorker)\n"
+        "    sys.modules[module_name] = module\n"
+        "sys.argv[0] = str(Path(__file__).with_name('plugin_main.py'))\n"
+        "runpy.run_path(sys.argv[0], run_name='__main__')\n",
+        encoding="utf-8",
+    )
+    result = run_cli([runner_path, params_path], {1})
     combined = f"{result.stdout}\n{result.stderr}"
     assert "runtime is disabled" in combined, combined
 

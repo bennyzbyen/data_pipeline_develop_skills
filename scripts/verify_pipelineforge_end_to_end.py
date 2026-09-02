@@ -66,6 +66,12 @@ def write_design_package(root: Path, facts: dict[str, Any], blocked: bool = Fals
     dev_doc = root / "dev_doc"
     extracted_facts_path = dev_doc / "structured_facts.json"
     extracted_facts = json.loads(extracted_facts_path.read_text(encoding="utf-8"))
+    # These fixtures intentionally exercise the legacy single-contract route.
+    # Do not mix it with a v3 proposal inferred from the title-only DOCX. The
+    # separate technical-contract regression covers explicit v3 confirmation.
+    assert facts["codegen_contract"]["contract_version"] == 1
+    for key in ("project_contract", "code_unit_plan", "code_units"):
+        extracted_facts.pop(key, None)
     extracted_facts.update(facts)
     extracted_facts_path.write_text(json.dumps(extracted_facts, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     technical_design_path = dev_doc / "technical_design.md"

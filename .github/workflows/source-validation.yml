@@ -30,6 +30,24 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --requirement requirements-validation.txt
 
+      - name: Set up Node.js for offline Graphviz tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.0"
+
+      - name: Prepare Graphviz runtime
+        shell: pwsh
+        run: |
+          $runtimeRoot = Join-Path $env:RUNNER_TEMP 'pipeline-graphviz'
+          npm install --prefix $runtimeRoot --no-audit --no-fund --ignore-scripts @viz-js/viz@3.25.0
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to prepare Graphviz test runtime.' }
+          "PIPELINE_GRAPHVIZ_NODE=$((Get-Command node).Source)" >> $env:GITHUB_ENV
+          "PIPELINE_GRAPHVIZ_VIZ=$(Join-Path $runtimeRoot 'node_modules/@viz-js/viz')" >> $env:GITHUB_ENV
+
+      - name: Verify offline diagram interactions
+        shell: pwsh
+        run: node skills/pipeline-doc-generator/scripts/verify_diagram_viewer.cjs
+
       - name: Run source validation
         shell: pwsh
         run: .\invoke_source_validation.ps1 -JsonOut validation-summary.json -JUnitOut validation-junit.xml
