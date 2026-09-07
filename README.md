@@ -11,7 +11,7 @@ This repository maintains Codex Skills for Python data development workflows.
 - `pipeline-excel-builder`: build DataHub/DataEngine Pipeline Export Excel workbooks from waterline documents.
 - `pipeline-forge-guide`: route document-to-delivery work across the PipelineForge skills.
 - `db-ddl-generator-skill`: generate and review portable database DDL with explicit deployment profiles.
-- `pipeline-doc-generator`: generate editable DataEngine waterline Markdown, interactive standalone HTML, or paginated PDF email attachments from PRD/HLD evidence.
+- `pipeline-doc-generator`: generate editable DataEngine waterline Markdown, interactive standalone HTML, and paginated PDF email attachments together from PRD/HLD evidence.
 
 ## Repository Layout
 
