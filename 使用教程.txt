@@ -1,3 +1,7 @@
+# GPT-6 適配變更說明
+
+提示詞範例沿用當前指令與既有授權，移除硬套報表模式及重複確認；項目共用行為提示詞見 AGENTS.md。
+
 数据开发 Codex Skills 使用教程
 
 一、前提
@@ -120,7 +124,7 @@ new_project/src/
 使用 $report-codegen，根据 dev_doc/technical_design.md、dev_doc/structured_facts.json 和 dev_doc/questions.md，
 在 src/ 目录生成报表开发项目代码。
 使用 DataSource / DataProcess / DataStorage 三段式。
-默认按 supervisor_portal 风格；如果是 HBase + FS + ClickHouse 复杂报表，再参考 vehicle_verification 风格。
+按需求中的 component_kind 和执行契约选择匹配模式；仅在确属对应类型时使用 supervisor_portal 或 vehicle_verification，不把示例风格当成通用默认。
 配置里的密钥、IP、token 全部保留占位符。
 gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
 生成后做语法检查和 fake runtime verifier。
@@ -214,7 +218,7 @@ gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
 使用 $report-codegen，根据 dev_doc/technical_design.md、dev_doc/structured_facts.json 和 dev_doc/questions.md，
 在 src/ 目录生成报表开发项目代码。
 使用 DataSource / DataProcess / DataStorage 三段式。
-默认按 supervisor_portal 风格；如果是 HBase + FS + ClickHouse 复杂报表，再参考 vehicle_verification 风格。
+按需求中的 component_kind 和执行契约选择匹配模式；仅在确属对应类型时使用 supervisor_portal 或 vehicle_verification，不把示例风格当成通用默认。
 配置里的密钥、IP、token 全部保留占位符。
 gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
 生成后做语法检查和 fake runtime verifier。
@@ -231,7 +235,7 @@ gateway/、hbase/、fs/ 是固定平台包，不要生成业务逻辑进去。
 十、关键原则
 
 1. 需求文档先转 technical_design.md，不要直接从 DOCX 生成代码。
-2. dev_doc/questions.md 中 Blocking Code Generation 的问题要先确认；部署确认和非阻塞问题不妨碍安全脚手架生成。
+2. 先从现有文档和会话授权解决 questions.md 中的问题；信息足够直接生成并验证。仅未解决且影响正确性的缺项阻挡对应代码单元；部署项不阻挡本地就绪实现。
 3. 数据同步和报表开发不要混用 skill。
 4. gateway/、hbase/、fs/ 是固定平台包，不放业务逻辑。
 5. 配置文件里的密钥、IP、token 默认使用占位符。
