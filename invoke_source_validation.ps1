@@ -236,6 +236,18 @@ try {
             Script = "skills\data-doc-to-dev-md\scripts\verify_technical_contract_regression.py"
         },
         [ordered]@{
+            Name = "code_unit_contract_regression"
+            Script = "skills\data-doc-to-dev-md\scripts\verify_code_unit_contract_regression.py"
+        },
+        [ordered]@{
+            Name = "multi_code_unit_delivery"
+            Script = "skills\pipeline-forge-guide\scripts\verify_multi_code_unit_delivery.py"
+        },
+        [ordered]@{
+            Name = "blocked_code_unit_delivery"
+            Script = "skills\pipeline-forge-guide\scripts\verify_blocked_code_unit_delivery.py"
+        },
+        [ordered]@{
             Name = "docx_bundle_structure"
             Script = "skills\data-doc-to-dev-md\scripts\verify_extract_docx_bundle_compat.py"
         },

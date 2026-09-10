@@ -13,6 +13,14 @@ This repository maintains Codex Skills for Python data development workflows.
 - `db-ddl-generator-skill`: generate and review portable database DDL with explicit deployment profiles.
 - `pipeline-doc-generator`: generate editable DataEngine waterline Markdown, interactive standalone HTML, and paginated PDF email attachments together from PRD/HLD evidence.
 
+## GPT-6 Astra compatibility
+
+The primary project model is `gpt-6-astra`; start a new evaluation at `medium` reasoning or preserve an existing supported effort. The Director's separately pinned `gpt-5.6-sol` sub-agent policy remains in `AGENTS.md`. Model selection belongs to the host task, not skill `agents/openai.yaml` metadata. See the [official migration guidance](https://developers.openai.com/api/docs/guides/latest-model).
+
+Use `invoke_source_validation.ps1` for offline artifact and contract regressions, including audited assistant adoption, separate ready units, and disabled blocked scaffolds. Compare live-model behavior separately using the same synthetic inputs, source revision, reasoning effort, and tool access. Record unnecessary clarification, missed deliverables, incorrect facts, elapsed time, and available usage; a decision-only smoke test does not establish full workflow acceptance or a cost improvement.
+
+For rollout, record both repository revisions and back up the eight installed skill directories before deployment. Validate source changes, mirror with `sync_pipeline_forge.ps1`, validate package parity, and deploy with `deploy_skills.ps1`. On a regression, restore the matching source/package revisions in separate checkouts and restore the backed-up installed directories. Restore the recorded host model only if it changed. Do not overwrite unrelated work or plugin-manager caches.
+
 ## Repository Layout
 
 ```text
