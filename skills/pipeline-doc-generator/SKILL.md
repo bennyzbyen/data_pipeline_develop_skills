@@ -57,7 +57,7 @@ The project directory contains canonical `facts.json`, `questions.md`, generated
 
 PDF is a searchable, self-contained email/print attachment with embedded Chinese fonts, page numbers, clickable contents/bookmarks, repeated table headers, and linked vector-diagram full-page supplements. It does not embed the HTML viewer or JavaScript. The same `facts.json` drives all three deliverables.
 
-HTML separates the document-title link from the chapter outline. Keep the sidebar toggle reachable while reading, expand the desktop content area when it is closed, and wrap long titles/paths without clipping. Use the renderer's keyboard-accessible CSS-only control; do not add JavaScript or network dependencies for navigation. Hide navigation controls when printing.
+HTML separates the document-title link from the chapter outline. Keep the sidebar toggle in a dedicated narrow left rail that reserves its own layout space in both states, never as a floating button over the text. Keep it reachable while scrolling, expand the desktop content area when the directory is closed, and wrap long titles/paths without clipping. Use the renderer's keyboard-accessible CSS-only control; do not add JavaScript or network dependencies for navigation. Hide navigation controls when printing.
 
 Diagram interaction uses only the bundled `assets/diagram-viewer.js`, validated byte-for-byte and authorized by its CSP hash. Do not interpolate requirement content into JavaScript, load CDN assets, or reintroduce the legacy fixed-grid drawing engine. Developer/Operator defaults and all document-section/table choices remain unchanged by the engine switch.
 
