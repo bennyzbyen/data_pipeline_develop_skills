@@ -19,6 +19,12 @@
 
 These are the project's shared behavioral instructions, loaded through AGENTS.md. Skill `agents/openai.yaml` files provide invocation examples, not platform system prompts. Do not replace the host's system prompt or change account-wide model/permission settings for this project.
 
+## GPT-6 Astra Project Baseline
+
+- Use `gpt-6-astra` for the primary project task when selecting a model for this migration. Preserve an existing supported reasoning effort; use `medium` for a new baseline without a prior setting. This documents the project choice and does not change host or account settings. Keep the separately pinned Sol sub-agent policy below.
+- Treat follow-up corrections as changes to the active deliverable unless the user explicitly cancels or replaces it. Preserve completed independent units, re-evaluate affected facts and contracts, and answer progress questions without abandoning the remaining authorized work.
+- Validate generated artifacts with their required contract checks. Run implementation regressions when the corresponding helper or contract changes; do not treat a passing script suite as evidence that a model completed a live workflow or that a production deployment succeeded.
+
 ## Project Structure & Module Organization
 
 This repository maintains Codex skills for data-development workflows. The source of truth is `skills/`; each skill should contain `SKILL.md` and may include `scripts/`, `references/`, `assets/`, or `agents/`. Current source skills include `data-doc-to-dev-md`, `data-sync-codegen`, `report-codegen`, `data-job-log-debugger`, `pipeline-excel-builder`, `pipeline-forge-guide`, and `db-ddl-generator-skill`. PipelineForge packaging lives in the independent sibling repository `..\pipeline-forge`; never recreate it as a nested checkout under this repository. Local-only material belongs in `doc/`, `prod_code_sample/`, `outputs/`, and `templates/`; keep those paths out of committed source and generated project code.
