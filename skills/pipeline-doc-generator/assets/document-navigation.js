@@ -1,6 +1,28 @@
 /* Trusted offline navigation. All labels come from the rendered document DOM. */
 (() => {
   'use strict';
+  const themeButton = document.getElementById('theme-toggle');
+  if (themeButton) {
+    const preferenceKey = 'waterline-theme';
+    let theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    try {
+      const saved = window.localStorage.getItem(preferenceKey);
+      if (saved === 'light' || saved === 'dark') theme = saved;
+    } catch (_) { /* File previews may disable storage; switching still works. */ }
+    function paintTheme() {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeButton.setAttribute('aria-pressed', String(theme === 'dark'));
+      const text = theme === 'dark' ? '当前深色模式，切换为浅色模式' : '当前浅色模式，切换为深色模式';
+      themeButton.setAttribute('aria-label', text);
+      themeButton.title = text;
+    }
+    themeButton.addEventListener('click', () => {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      paintTheme();
+      try { window.localStorage.setItem(preferenceKey, theme); } catch (_) { /* Optional persistence. */ }
+    });
+    paintTheme();
+  }
   const toggle = document.getElementById('toc-toggle');
   const label = document.querySelector('.toc-toggle-label');
   const navigation = document.querySelector('.toc-chapters');
