@@ -543,6 +543,8 @@ def markdown_to_html(markdown: str, markdown_path: Path, title: str) -> str:
         '<label for="toc-toggle" class="toc-toggle-label" title="收起目录"><span class="toc-toggle-icon" aria-hidden="true"></span>'
         '<span class="toc-toggle-close">收起目录</span><span class="toc-toggle-open">展开目录</span></label>'
         '<label for="toc-toggle" class="toc-backdrop" aria-hidden="true"></label>'
+        '<button type="button" id="theme-toggle" class="theme-toggle" aria-label="当前浅色模式，切换为深色模式" aria-pressed="false" title="切换外观">'
+        '<span class="theme-icon theme-sun" aria-hidden="true"></span><span class="theme-icon theme-moon" aria-hidden="true"></span></button>'
         '<div class="layout"><aside id="document-toc" class="toc" aria-label="文档导航">'
         '<header class="toc-header"><p class="toc-eyebrow">水线文档</p>' + document_link + '</header>'
         '<nav class="toc-chapters" aria-label="章节目录"><h2>目录</h2><ul class="toc-list">' + "".join(toc_items) + '</ul></nav></aside>'
@@ -557,6 +559,7 @@ def markdown_to_html(markdown: str, markdown_path: Path, title: str) -> str:
         digest = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode("ascii")
         script_policy += f" 'sha256-{digest}'"
         viewer = (ASSETS / "diagram-viewer.html").read_text(encoding="utf-8") + '<script data-waterline-viewer="1">' + script + '</script>'
+    css += (ASSETS / "document-theme.css").read_text(encoding="utf-8")
     viewer += '<script data-waterline-navigation="1">' + navigation_script + '</script>'
     csp = f"default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src {script_policy}; base-uri 'none'; object-src 'none'"
     return "<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"" + csp + "\"><title>" + html.escape(title) + "</title><style>" + css + "</style></head><body>" + navigation + '<main id="document-main">' + "\n".join(body) + "</main></div>" + viewer + "</body></html>\n"

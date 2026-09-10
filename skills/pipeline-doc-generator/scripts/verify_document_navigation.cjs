@@ -48,4 +48,29 @@ function scenario(mobile) {
   assert.equal(links[2].attrs['aria-current'], 'location'); // Last short section at page bottom.
 }
 scenario(false); scenario(true);
+function themeScenario(saved, systemDark, storageBlocked) {
+  const attrs = {}, rootAttrs = {}, listeners = {};
+  let stored = saved;
+  const button = { setAttribute: (key, value) => { attrs[key] = value; },
+    addEventListener: (name, action) => { listeners[name] = action; } };
+  const document = { documentElement: { setAttribute: (key, value) => { rootAttrs[key] = value; } },
+    getElementById: id => id === 'theme-toggle' ? button : null, querySelector: () => null };
+  const window = { matchMedia: () => ({ matches: systemDark }), localStorage: {
+    getItem: key => { assert.equal(key, 'waterline-theme'); if (storageBlocked) throw Error('disabled'); return stored; },
+    setItem: (key, value) => { assert.equal(key, 'waterline-theme'); if (storageBlocked) throw Error('disabled'); stored = value; },
+  } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../assets/document-navigation.js'), 'utf8'), { document, window });
+  const initial = !storageBlocked && ['light', 'dark'].includes(saved) ? saved : systemDark ? 'dark' : 'light';
+  assert.equal(rootAttrs['data-theme'], initial);
+  listeners.click();
+  assert.equal(rootAttrs['data-theme'], initial === 'dark' ? 'light' : 'dark');
+  assert.equal(attrs['aria-pressed'], String(rootAttrs['data-theme'] === 'dark'));
+  assert(attrs['aria-label'].includes('切换'));
+  if (!storageBlocked) assert.equal(stored, rootAttrs['data-theme']);
+  listeners.click(); assert.equal(rootAttrs['data-theme'], initial);
+}
+themeScenario(null, false, false); themeScenario(null, true, false);
+themeScenario('light', true, false); themeScenario('dark', false, false);
+themeScenario('invalid', true, false); themeScenario('dark', false, true);
 console.log('Navigation: scroll tracking, long tables, reverse scrolling, bottom selection, reveal, mobile and keyboard checks passed');
+console.log('Theme: system default, saved preference, toggling, accessible labels, invalid preference and unavailable storage passed');
