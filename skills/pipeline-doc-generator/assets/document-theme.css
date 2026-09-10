@@ -1,11 +1,11 @@
 .theme-toggle{position:fixed;bottom:max(18px,env(safe-area-inset-bottom));left:max(10px,calc((100% - var(--layout-width))/2 + 10px));z-index:40;width:36px;height:36px;padding:0;border:1px solid #d8dbe1;border-radius:11px;background:#ffffffeb;color:#60646c;box-shadow:0 2px 8px #17203308;cursor:pointer;display:grid;place-items:center;-webkit-tap-highlight-color:transparent}
 .theme-toggle:hover{background:#e9edf3;color:#1d1d1f}.theme-toggle:focus-visible{outline:3px solid #007aff;outline-offset:3px}.theme-toggle:active{transform:scale(.94)}
-.theme-icon{position:absolute;display:block;width:20px;height:20px;pointer-events:none;transition:transform .48s cubic-bezier(.22,1,.36,1),opacity .32s ease}
+.theme-icon{position:absolute;display:block;width:20px;height:20px;pointer-events:none;will-change:transform,opacity;transition:transform .48s cubic-bezier(.22,1,.36,1),opacity .32s ease}
 .theme-sun{opacity:1;transform:rotate(0) scale(1)}.theme-sun:before{content:"";position:absolute;inset:5px;border:1.6px solid currentColor;border-radius:50%}.theme-sun:after{content:"";position:absolute;inset:0;background:repeating-conic-gradient(from -4deg,currentColor 0deg 8deg,transparent 8deg 45deg);mask:radial-gradient(circle,transparent 7px,#000 7.5px);border-radius:50%}
 .theme-moon{opacity:0;transform:rotate(-90deg) scale(.45);background:currentColor;border-radius:50%;mask:radial-gradient(circle at 72% 24%,transparent 8px,#000 8.6px)}
 :root[data-theme="dark"] .theme-sun{opacity:0;transform:rotate(90deg) scale(.45)}:root[data-theme="dark"] .theme-moon{opacity:1;transform:rotate(0) scale(1)}
 @media screen{
-body,main,.toc,.toc-header,.toc-list a,.toc-toggle-label,.theme-toggle,th,td,code,h1,h2,h3{transition:background-color .32s ease,color .32s ease,border-color .32s ease}
+/* Long documents recolor once; animate only the two small theme icons. */
 :root[data-theme="dark"]{color-scheme:dark;--ink:#e8e9ed;--muted:#a2a8b4;--line:#383d47;--accent:#79b5ff;--paper:#1c1e23;--wash:#131519}
 :root[data-theme="dark"] .toc{background:#191b20;color:#e8e9ed;border-color:#30343d}
 :root[data-theme="dark"] .toc-header{border-color:#30343d}
