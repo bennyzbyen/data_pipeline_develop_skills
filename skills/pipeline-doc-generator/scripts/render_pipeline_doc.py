@@ -304,18 +304,15 @@ def project_pipeline_sections(facts: dict, profile: str, catalog_svg_rel: str = 
         sections.extend(["", "### 5.2.4 Catalog Basic Info", ""])
         sections.append(catalog_basic_info_table(catalog) if catalog.get("enabled") else "不适用（已确认）")
     else:
-        sections.extend(["", "### 4.2.4 登记 Data Catalog", ""])
         if catalog.get("enabled"):
-            if catalog_svg_rel:
-                sections.append(f"![Data Catalog 登记流程]({catalog_svg_rel})")
-            sections.extend(["", "### 4.2.5 检查 Catalog Basic Info", ""])
+            sections.extend(["", "### 4.2.4 检查 Catalog Basic Info", ""])
             sections.append(catalog_basic_info_table(catalog))
-            sections.extend(["", "### 4.2.6 登记 Data Dictionary", ""])
+            sections.extend(["", "### 4.2.5 登记 Data Dictionary", ""])
             sections.append(markdown_table(["数据项", "Column", "Type"], [[row.get("data_item", ""), target_reference(facts, row), target_reference(facts, row)] for row in catalog.get("dictionary") or []]))
-            sections.extend(["", "### 4.2.7 登记 Data Storage", ""])
+            sections.extend(["", "### 4.2.6 登记 Data Storage", ""])
             sections.append(markdown_table(["数据项", "存放地", "Field&Type", "Limit（Sample Data）"], [[row.get("data_item", ""), row.get("location", ""), target_reference(facts, row), row.get("limit", "")] for row in catalog.get("storage") or []]))
         else:
-            sections.extend(["不适用（已确认）", "", "### 4.2.5 检查 Catalog Basic Info", "", "不适用（已确认）"])
+            sections.extend(["", "### 4.2.4 检查 Catalog Basic Info", "", "不适用（已确认）"])
     return "\n".join(str(item) for item in sections)
 
 
@@ -597,6 +594,8 @@ def main() -> int:
     if not blocking_questions(facts):
         require_bindings(facts)
     for slot, config in facts.get("render_preferences", {}).get("diagrams", {}).items():
+        if slot == "catalog":
+            continue  # Retained legacy audit asset; no longer part of the document.
         if slot not in {"data_flow", "catalog"} or config.get("engine") != "diagram-design":
             raise ValueError("Invalid bound diagram slot or engine")
         spec = facts["flow"] if slot == "data_flow" else catalog_spec()
@@ -634,14 +633,6 @@ def main() -> int:
     data_svg_rel = f"{asset_dir.name}/{data_svg_path.name}"
 
     catalog_svg_rel = ""
-    if facts["profile"] == "report" and (facts.get("catalog") or {}).get("enabled"):
-        cat_spec = catalog_spec()
-        cat_spec_path = asset_dir / "catalog_registration_flow.spec.json"
-        cat_svg_path = asset_dir / "catalog_registration_flow.svg"
-        write_json(cat_spec_path, cat_spec)
-        render_diagram(cat_spec, cat_svg_path, facts, facts_path.parent, "catalog")
-        catalog_svg_rel = f"{asset_dir.name}/{cat_svg_path.name}"
-
     markdown = render_markdown(facts, data_svg_rel, catalog_svg_rel)
     markdown_path = out_dir / f"{stem}.md"
     html_path = out_dir / f"{stem}.html"

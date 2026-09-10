@@ -238,6 +238,8 @@ def main() -> int:
             errors.append(str(exc))
     from render_pipeline_doc import catalog_spec
     for slot, config in facts.get("render_preferences", {}).get("diagrams", {}).items():
+        if slot == "catalog":
+            continue  # Deprecated presentation asset is not required.
         try:
             if slot not in {"data_flow", "catalog"} or config.get("engine") != "diagram-design":
                 raise ValueError("Invalid diagram binding")

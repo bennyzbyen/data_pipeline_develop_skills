@@ -65,3 +65,5 @@ Neither Target nor Target Management has a `catalog` column, even if legacy targ
 Use a light neutral sidebar, restrained separators, system fonts and a compact sidebar icon outside the text area. Keep full physical table names readable. Use a persistent blue selection state for the section currently being read, including while scrolling through long tables; hover and last-click states are not substitutes. Reopening the directory reveals the active item. Use only the bundled offline navigation script and its CSP hash; hide navigation when printing and preserve keyboard access.
 
 For theme switching in long documents, animate only the small sun/moon icons using transform and opacity. Switch document colors directly; do not attach color/background/border transitions to every table cell, code span, or heading. Limit compositor hints to the icon pair, never all document elements.
+
+Never add the Data Catalog applicability/registration chapter or its process diagram. Keep the actual Basic Info, Dictionary and Storage tables, with contiguous numbering after removal. This is a standing presentation preference, not a decision to disable Catalog registration.
