@@ -235,6 +235,10 @@ try {
             Name = "portable_knowledge"
             Script = "skills\pipeline-forge-guide\scripts\verify_portable_knowledge.py"
         },
+        @{
+            Name = "practice_recommendations"
+            Script = "skills\pipeline-forge-guide\scripts\verify_practice_recommendations.py"
+        },
         [ordered]@{
             Name = "knowledge_governance"
             Script = "skills\pipeline-forge-guide\scripts\verify_knowledge_governance.py"
