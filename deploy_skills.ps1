@@ -12,12 +12,18 @@ param(
         "db-ddl-generator-skill",
         "pipeline-doc-generator"
     ),
+    [switch]$DevelopmentOnly,
     [switch]$DryRun,
     [switch]$Clean
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# Daily deployment uses the PipelineForge plugin. Standalone copies are for explicit development tests only.
+if (-not $DevelopmentOnly) {
+    throw "Standalone skill deployment is disabled by default. Daily workflow: edit source skills, run sync_pipeline_forge.ps1, then update the installed PipelineForge plugin. For explicit standalone development tests, pass -DevelopmentOnly."
+}
 
 $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     (Get-Location).Path

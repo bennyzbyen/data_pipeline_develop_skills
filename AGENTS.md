@@ -39,10 +39,18 @@ The repository owner is the final authority. A session instructed to act as **Pi
 - Keep packaging, installer, release metadata, changelog, checksum, and website-only changes in `..\pipeline-forge`. When both repositories change, inspect both diffs, validate source/package parity, and use separate commits. The PipelineForge commit must cite the exact source commit as `data_pipeline_develop_skills@<sha>`; use a shared Issue, PR, or Change-ID for bidirectional correlation instead of circular final-SHA references.
 - Authority to coordinate the repositories does not expand a task beyond the user's request. Publishing, destructive operations, credential changes, and external mutations require authorization covering the actual action. Reuse authorization already present in the session; do not demand a separate approval merely because a new stage begins. Complete authorized local preparation first.
 
+## Default Deployment Workflow
+
+- 日常固定流程：修改本倉庫 `skills/` 源碼 → 執行相關驗證 → 用 `sync_pipeline_forge.ps1` 同步至同級 `../pipeline-forge` 並驗證一致性 → 透過插件管理流程更新已安裝的 PipelineForge 插件。
+- 日常只保留 PipelineForge 插件提供這八個 Skill 的使用入口；不再向 `%USERPROFILE%\.codex\skills` 部署其獨立副本。保留源碼、插件倉庫及其他不重複的獨立 Skills。
+- 同步插件倉庫不等於已安裝插件完成更新；交付時區分源碼驗證、打包同步與已安裝版本更新的實際狀態。不得直接改寫插件安裝快取。
+- PipelineForge 本地安裝版本遵循 `../pipeline-forge/VERSIONING.md`，與插件倉庫權威版本一致；不得因通用插件開發流程而附加 `+codex.<timestamp>`。版本升級使用插件倉庫的統一版本腳本，重新安裝後驗證實際文件。
+- `deploy_skills.ps1` 僅供用戶明確要求的獨立 Skill 開發測試，必須帶 `-DevelopmentOnly`；不得作為日常部署、回滾或驗證步驟重新建立全域重複副本。測試優先指定隔離的 `-TargetRoot`。
+
 ## Build, Test, and Development Commands
 
-- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -DryRun` previews skill sync operations.
-- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -Clean` refreshes `%USERPROFILE%\.codex\skills`.
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -DevelopmentOnly -TargetRoot .\outputs\standalone-skill-test -DryRun` previews an explicitly requested standalone development deployment.
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -DevelopmentOnly -TargetRoot .\outputs\standalone-skill-test -Clean` refreshes an isolated standalone development copy; it is not the daily deployment path.
 - `Get-ChildItem -LiteralPath 'skills' -Recurse -Filter '*.py' | ForEach-Object { python -m py_compile $_.FullName }` syntax-checks all Python helper scripts.
 - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\sync_pipeline_forge.ps1 -DryRun` previews the one-way source-to-plugin mirror into the sibling repository.
 - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\sync_pipeline_forge.ps1` mirrors source skills into `..\pipeline-forge` and validates source/package parity.

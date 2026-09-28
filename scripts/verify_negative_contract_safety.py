@@ -144,6 +144,7 @@ def cot_facts(ready_for_codegen: bool) -> Dict[str, Any]:
                 "source_range": "2026P01~",
                 "source_hbase_table": "l2_fixture.fixture_report_p",
                 "clickhouse_table": "cot_fixture.fixture_report_p",
+                "rowkey_contract": {"confirmed": True, "prefix": "last_char", "columns": ["period", "code"], "evidence": "synthetic offline fixture contract"},
             }
         ],
         "field_dictionaries": [

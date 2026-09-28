@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PluginRoot = "",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [string[]]$SkillNames = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,6 +35,15 @@ $sourceSkills = @(
         Sort-Object Name
 )
 
+if ($SkillNames.Count -gt 0) {
+    foreach ($name in $SkillNames) {
+        if ($name -notin $sourceSkills.Name) {
+            throw "Unknown source skill: $name"
+        }
+    }
+    $sourceSkills = @($sourceSkills | Where-Object { $_.Name -in $SkillNames })
+}
+
 foreach ($skill in $sourceSkills) {
     $destination = [System.IO.Path]::GetFullPath((Join-Path $pluginSkillsRoot $skill.Name))
     if (-not $destination.StartsWith($pluginPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -57,7 +67,12 @@ if ($DryRun) {
 
 $validator = Join-Path $pluginRepositoryRoot "scripts\validate_package.py"
 $env:PYTHONUTF8 = "1"
-& python $validator --source-root $repositoryRoot
+$validationArguments = @($validator, '--source-root', $repositoryRoot)
+if ($SkillNames.Count -gt 0) {
+    $validationArguments += '--skill-scope'
+    $validationArguments += $SkillNames
+}
+& python @validationArguments
 if ($LASTEXITCODE -ne 0) {
     throw "PipelineForge package validation failed with exit code $LASTEXITCODE"
 }
