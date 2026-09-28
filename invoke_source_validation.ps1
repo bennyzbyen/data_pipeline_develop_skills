@@ -232,6 +232,18 @@ try {
 
     $regressions = @(
         [ordered]@{
+            Name = "portable_knowledge"
+            Script = "skills\pipeline-forge-guide\scripts\verify_portable_knowledge.py"
+        },
+        [ordered]@{
+            Name = "knowledge_governance"
+            Script = "skills\pipeline-forge-guide\scripts\verify_knowledge_governance.py"
+        },
+        [ordered]@{
+            Name = "cot_knowledge_scope"
+            Script = "skills\data-sync-codegen\scripts\verify_cot_knowledge_scope.py"
+        },
+        [ordered]@{
             Name = "technical_contract_regression"
             Script = "skills\data-doc-to-dev-md\scripts\verify_technical_contract_regression.py"
         },

@@ -104,6 +104,7 @@ def cot_table(table_name: str, fields: list[str], with_period: bool) -> dict[str
                 "source_range": "fixture range",
                 "source_hbase_table": f"fixture_hbase.{table_name}",
                 "clickhouse_table": f"fixture_clickhouse.{table_name}",
+                "rowkey_contract": {"confirmed": True, "prefix": "last_char", "columns": ["period", "code"] if with_period else ["id"], "evidence": "synthetic offline fixture contract"},
             }
         ],
         "field_dictionaries": [

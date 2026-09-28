@@ -19,13 +19,13 @@ The primary project model is `gpt-6-astra`; start a new evaluation at `medium` r
 
 Use `invoke_source_validation.ps1` for offline artifact and contract regressions, including audited assistant adoption, separate ready units, and disabled blocked scaffolds. Compare live-model behavior separately using the same synthetic inputs, source revision, reasoning effort, and tool access. Record unnecessary clarification, missed deliverables, incorrect facts, elapsed time, and available usage; a decision-only smoke test does not establish full workflow acceptance or a cost improvement.
 
-For rollout, record both repository revisions and back up the eight installed skill directories before deployment. Validate source changes, mirror with `sync_pipeline_forge.ps1`, validate package parity, and deploy with `deploy_skills.ps1`. On a regression, restore the matching source/package revisions in separate checkouts and restore the backed-up installed directories. Restore the recorded host model only if it changed. Do not overwrite unrelated work or plugin-manager caches.
+For rollout, record both repository revisions and the installed plugin version. Validate source changes, mirror with `sync_pipeline_forge.ps1`, validate package parity, then update the installed PipelineForge plugin through the plugin management workflow. Mirroring the package repository alone does not update the installed plugin. On a regression, restore the matching source/package revisions in separate checkouts and use the plugin management workflow to restore the corresponding plugin version. Restore the recorded host model only if it changed. Do not overwrite unrelated work or plugin-manager caches.
 
 ## Repository Layout
 
 ```text
 skills/              Source-of-truth skill directories
-deploy_skills.ps1    Sync skills into the local Codex runtime skill directory
+deploy_skills.ps1    Explicit standalone development tests only (-DevelopmentOnly)
 invoke_source_validation.ps1
                      Run deterministic source checks and regression tests
 sync_pipeline_forge.ps1
@@ -78,14 +78,20 @@ The command checks Python syntax, verifies that the DDL templates are tracked, s
 
 Git commits and pull requests are the engineering record. Non-trivial commits should explain `Why`, list `Validation` results, and cite the related PipelineForge commit when both repositories change. PipelineForge release notes belong in its `CHANGELOG.md`; unresolved follow-up work belongs in GitHub Issues.
 
-## Deploy Locally
+## Daily Deployment: PipelineForge Plugin
+
+The fixed workflow is: **edit source skills → run relevant checks → sync the plugin repository → update the installed PipelineForge plugin**.
+
+Use `sync_pipeline_forge.ps1` as shown above, then update PipelineForge through the plugin management workflow. Verify the installed version separately: a successful source-to-package sync is not evidence of an installed plugin update.
+
+Keep the source skills and sibling plugin repository. Use the plugin as the daily entrypoint for these eight skills; do not redeploy duplicate standalone copies into `%USERPROFILE%\.codex\skills`. Other independent skills remain installed.
+
+### Explicit Standalone Development Tests
+
+`deploy_skills.ps1` rejects execution unless `-DevelopmentOnly` is supplied. Use it only when standalone testing is explicitly requested, preferably with an isolated target:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -DevelopmentOnly -TargetRoot .\outputs\standalone-skill-test -DryRun
 ```
 
-The default Codex runtime target is:
-
-```text
-%USERPROFILE%\.codex\skills
-```
+Remove `-DryRun` to perform that development deployment. Omitting `-TargetRoot` still targets `%USERPROFILE%\.codex\skills`, so it can recreate duplicate runtime entries and is not part of daily deployment or rollback.
