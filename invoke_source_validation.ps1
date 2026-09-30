@@ -236,6 +236,10 @@ try {
             Script = "skills\pipeline-forge-guide\scripts\verify_portable_knowledge.py"
         },
         @{
+            Name = "feedback_workflows"
+            Script = "skills\pipeline-forge-guide\scripts\verify_feedback_workflows.py"
+        },
+        @{
             Name = "practice_recommendations"
             Script = "skills\pipeline-forge-guide\scripts\verify_practice_recommendations.py"
         },
