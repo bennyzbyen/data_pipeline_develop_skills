@@ -44,9 +44,13 @@ jobs:
           "PIPELINE_GRAPHVIZ_NODE=$((Get-Command node).Source)" >> $env:GITHUB_ENV
           "PIPELINE_GRAPHVIZ_VIZ=$(Join-Path $runtimeRoot 'node_modules/@viz-js/viz')" >> $env:GITHUB_ENV
 
-      - name: Verify offline diagram interactions
+      - name: Verify offline document interactions
         shell: pwsh
-        run: node skills/pipeline-doc-generator/scripts/verify_diagram_viewer.cjs
+        run: |
+          node skills/pipeline-doc-generator/scripts/verify_diagram_viewer.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Diagram interaction checks failed.' }
+          node skills/pipeline-doc-generator/scripts/verify_document_navigation.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Document navigation checks failed.' }
 
       - name: Run source validation
         shell: pwsh
