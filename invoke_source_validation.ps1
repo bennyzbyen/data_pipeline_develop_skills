@@ -328,6 +328,10 @@ try {
             Script = "skills\db-ddl-generator-skill\scripts\verify_ddl_input_robustness.py"
         },
         [ordered]@{
+            Name = "ddl_reconciliation"
+            Script = "skills\db-ddl-generator-skill\scripts\verify_ddl_reconciliation.py"
+        },
+        [ordered]@{
             Name = "data_job_log_input_robustness"
             Script = "skills\data-job-log-debugger\scripts\verify_data_job_log_input_robustness.py"
         },
