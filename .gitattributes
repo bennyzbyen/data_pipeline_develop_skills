@@ -1,0 +1,2 @@
+# Preserve the trusted UI SVG bytes across Windows checkouts and HTML validation.
+skills/pipeline-doc-generator/assets/document-glass.svg text eol=lf

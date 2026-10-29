@@ -324,6 +324,14 @@ try {
             Script = "skills\pipeline-excel-builder\scripts\verify_pipeline_excel_input_robustness.py"
         },
         [ordered]@{
+            Name = "pipeline_excel_java_source_contract"
+            Script = "skills\pipeline-excel-builder\scripts\verify_java_source_contract.py"
+        },
+        [ordered]@{
+            Name = "pipeline_excel_template_preservation"
+            Script = "skills\pipeline-excel-builder\scripts\verify_template_preservation.py"
+        },
+        [ordered]@{
             Name = "ddl_input_robustness"
             Script = "skills\db-ddl-generator-skill\scripts\verify_ddl_input_robustness.py"
         },
