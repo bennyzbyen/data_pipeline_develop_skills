@@ -14,11 +14,6 @@ $checks = [System.Collections.Generic.List[object]]::new()
 $previousPythonUtf8 = $env:PYTHONUTF8
 $previousPythonIoEncoding = $env:PYTHONIOENCODING
 $previousDontWriteBytecode = $env:PYTHONDONTWRITEBYTECODE
-$previousPycachePrefix = $env:PYTHONPYCACHEPREFIX
-$validationTempRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path ([System.IO.Path]::GetTempPath()) ("pipeline-forge-source-validation-" + [Guid]::NewGuid().ToString("N")))
-)
-[System.IO.Directory]::CreateDirectory($validationTempRoot) | Out-Null
 
 function Add-CheckResult {
     param(
@@ -224,11 +219,9 @@ try {
 
     Test-DdlTemplates
 
-    $env:PYTHONPYCACHEPREFIX = Join-Path $validationTempRoot "pycache"
     Invoke-PythonCheck -Name "python_syntax" -Category "syntax" -Arguments @(
-        "-m", "compileall", "-q", "-f", (Join-Path $repositoryRoot "skills")
+        (Join-Path $repositoryRoot "scripts\check_python_syntax.py"), (Join-Path $repositoryRoot "skills"), (Join-Path $repositoryRoot "scripts")
     )
-    $env:PYTHONPYCACHEPREFIX = $previousPycachePrefix
 
     $regressions = @(
         [ordered]@{
@@ -266,6 +259,10 @@ try {
         [ordered]@{
             Name = "blocked_code_unit_delivery"
             Script = "skills\pipeline-forge-guide\scripts\verify_blocked_code_unit_delivery.py"
+        },
+        [ordered]@{
+            Name = "development_behavior_regressions"
+            Script = "scripts\run_development_checks.py"
         },
         [ordered]@{
             Name = "docx_bundle_structure"
@@ -361,12 +358,6 @@ try {
     $env:PYTHONUTF8 = $previousPythonUtf8
     $env:PYTHONIOENCODING = $previousPythonIoEncoding
     $env:PYTHONDONTWRITEBYTECODE = $previousDontWriteBytecode
-    $env:PYTHONPYCACHEPREFIX = $previousPycachePrefix
-    $systemTempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd("\") + "\"
-    if ($validationTempRoot.StartsWith($systemTempRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
-        (Test-Path -LiteralPath $validationTempRoot -PathType Container)) {
-        Remove-Item -LiteralPath $validationTempRoot -Recurse -Force
-    }
 }
 
 $failedCount = @($checks | Where-Object { $_.status -eq "failed" }).Count

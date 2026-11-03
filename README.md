@@ -95,3 +95,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\deploy_skills.ps1 -Dev
 ```
 
 Remove `-DryRun` to perform that development deployment. Omitting `-TargetRoot` still targets `%USERPROFILE%\.codex\skills`, so it can recreate duplicate runtime entries and is not part of daily deployment or rollback.
+
+## Development checks and offline replay
+
+Run `python scripts/run_development_checks.py` for the document and report behavior suites in one process. Use `--group documents` or `--group reports`, `--source-root <snapshot>`, or `--list` for scoped runs and comparison. `invoke_source_validation.ps1` includes this unified entrypoint. Its syntax phase compiles source in memory without writing bytecode caches; full validation requires the dependencies of all Skills.
+
+Offline document/contract replay is maintained in [`scripts/devtools/report_evaluation/`](scripts/devtools/report_evaluation/README.md). These development tools and private corpora are not shipped in the plugin; generated-project runtime and safety verifiers remain in their Skills.
