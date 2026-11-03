@@ -261,6 +261,23 @@ class EvaluationBaseline(unittest.TestCase):
     def driver(self):
         return EVALUATION_TOOLS / "evaluate_report_samples.py"
 
+    def test_corpus_root_alias_preserves_membership_and_escape_checks(self):
+        spec = importlib.util.spec_from_file_location("root_alias_evaluation_driver", self.driver())
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "corpus"
+            (root / "nested").mkdir(parents=True)
+            path = root / "sample.json"
+            path.write_bytes(b"fixture")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            alias = root / "nested" / ".."
+            self.assertEqual(path.resolve(), module.checked_file(alias, "sample.json", digest))
+            outside = root.parent / "outside.json"
+            outside.write_bytes(b"fixture")
+            with self.assertRaisesRegex(ValueError, "escapes its root"):
+                module.checked_file(alias, "../outside.json", digest)
+
     def test_changed_or_escaping_corpus_members_are_rejected(self):
         spec = importlib.util.spec_from_file_location("round6_evaluation_driver", self.driver())
         module = importlib.util.module_from_spec(spec)
@@ -271,7 +288,7 @@ class EvaluationBaseline(unittest.TestCase):
             path = root / "sample.json"
             path.write_bytes(b"fixture")
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            self.assertEqual(path, module.checked_file(root, "sample.json", digest))
+            self.assertEqual(path.resolve(), module.checked_file(root, "sample.json", digest))
             path.write_bytes(b"changed")
             with self.assertRaises(ValueError):
                 module.checked_file(root, "sample.json", digest)

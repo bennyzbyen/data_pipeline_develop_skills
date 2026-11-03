@@ -15,6 +15,7 @@ import time
 
 
 def checked_file(root: Path, name: str, expected_hash: str) -> Path:
+    root = root.resolve()
     path = (root / name).resolve()
     try:
         path.relative_to(root)
